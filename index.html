@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Cost Optimizer</title>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Main Style -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>Gemini Cost Optimizer</h1>
+            <p>Analyze TPM usage to find your optimal Provisioned Throughput setup</p>
+        </header>
+
+        <!-- Sidebar / Control Panel -->
+        <div class="glass-panel">
+            <div id="drop-zone" class="drop-zone">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                <p>Drag & Drop CSV File here</p>
+                <span style="font-size: 0.8rem; color: var(--text-muted);">or Click to Select</span>
+                <input type="file" id="file-input" accept=".csv" style="display: none;">
+            </div>
+
+            <div class="form-title">Cost Parameters</div>
+            
+            <div class="form-group">
+                <label>TPM per GSU <span id="val-tpm_gsu">30,000</span></label>
+                <input type="range" id="param-tpm_gsu" min="10000" max="60000" step="5000" value="30000">
+            </div>
+
+            <div class="form-group">
+                <label>GSU Cost / Month <span id="val-gsu_cost">$2,000</span></label>
+                <input type="range" id="param-gsu_cost" min="500" max="5000" step="100" value="2000">
+            </div>
+
+            <div class="form-group">
+                <label>Input Rate ($/M) <span id="val-input_rate">$2.00</span></label>
+                <input type="number" id="param-input_rate" value="2.00" step="0.5">
+            </div>
+
+            <div class="form-group">
+                <label>Output Rate ($/M) <span id="val-output_rate">$12.00</span></label>
+                <input type="number" id="param-output_rate" value="12.00" step="1">
+            </div>
+
+            <div class="form-group">
+                <label>Input/Output Split (%) <span id="val-ratio">96/4</span></label>
+                <input type="range" id="param-ratio" min="50" max="99" value="96">
+            </div>
+
+            <div class="form-group">
+                <label>PayGo Multiplier <span id="val-paygo_mult">1.8x</span></label>
+                <input type="range" id="param-paygo_mult" min="1.0" max="3.0" step="0.1" value="1.8">
+            </div>
+
+            <button id="calc-btn" class="calc-btn">Calculate</button>
+            
+            <div id="resolution-banner" style="display:none; font-size:0.85rem; color: var(--primary-cyan); text-align:center; padding-top:1rem;">
+                Detected Resolution: <span id="res-value">-</span>
+            </div>
+        </div>
+
+        <!-- Main Dashboard View -->
+        <div class="glass-panel" style="position: relative;">
+            <button id="reset-zoom" class="calc-btn" style="width:auto; padding:0.4rem 0.8rem; font-size:0.8rem; position:absolute; top:1.5rem; right:1.5rem; z-index:10; display:none; margin-top:0;">Reset Zoom</button>
+            <div class="chart-wrapper">
+                <canvas id="tpmChart"></canvas>
+            </div>
+
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <h4>Total Tokens</h4>
+                    <p id="metric-total_tokens">-</p>
+                </div>
+                <div class="metric-card">
+                    <h4>Peak TPM</h4>
+                    <p id="metric-peak_tpm">-</p>
+                </div>
+                <div class="metric-card">
+                    <h4>Optimal GSU</h4>
+                    <p id="metric-optimal_gsu">-</p>
+                </div>
+                <div class="metric-card">
+                    <h4>Est. Total Cost</h4>
+                    <p id="metric-total_cost">-</p>
+                </div>
+            </div>
+
+            <div class="form-title">GSU Comparison Table</div>
+            <div class="table-container">
+                <table id="simulation-table">
+                    <thead>
+                        <tr>
+                            <th>GSU Units</th>
+                            <th>TPM Threshold</th>
+                            <th>PT Cost</th>
+                            <th>Util %</th>
+                            <th>Spillover (B)</th>
+                            <th>PayGo Cost</th>
+                            <th>Total Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Dynamic Rows -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- CDN Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <!-- Chart.js Time Adapter Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
