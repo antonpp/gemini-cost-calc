@@ -18,6 +18,7 @@ This specification outlines the design and functionality for a single-page web a
 *   **Third-party Libraries (loaded via CDN)**:
     *   **PapaParse**: For robust client-side CSV parsing.
     *   **Chart.js**: For rendering the timeseries line chart with threshold annotations.
+    *   **chartjs-plugin-zoom**: For providing fully fully interactive Drag-and-Zoom pan and resets snapping.
     *   **FontAwesome (Optional)**: For rich UI icons.
     *   **Google Fonts**: 'Inter' or 'Outfit' for modern typography.
 
@@ -50,12 +51,12 @@ The application SHOULD look extremely premium, adopting a "Glassmorphic Dashboar
 #### **Panel A: Configuration & Upload (Left or Top)**
 1.  **Drop Zone**: Large, dashed border box with icon for direct drag-and-drop integration. Alternatively, a "Select File" button.
 2.  **Parameters Form**:
-    *   `TPM per GSU` (e.g., slider/input, default: 30,000)
-    *   `GSU Cost / Month` (e.g., slider/input, default: $2,000)
-    *   `Input Token Cost per M` (e.g., input, default: $2.00)
-    *   `Output Token Cost per M` (e.g., input, default: $12.00)
-    *   `Input/Output ratio Split` (e.g., slider for percentage inputs, default 96/4)
-    *   `PayGo Multiplier` (e.g., slider, default 1.8x)
+    *   **Global Layout**: `TPM per GSU`, `GSU Cost / Month`, rates pointers.
+    *   **Tiers Config (Toggle Toggles)**:
+        *   `Enable PT` layout limits.
+        *   `Enable Priority` layout & Priority multiplier sliders.
+        *   `Enable Standard` layout bounding frames.
+        *   `Max Prio TPM` and `Max Std TPM` continuous bounds sliders headers incorporating absolute `Unlimited` checkboxes overlays natively securely.
 
 #### **Panel B: Interactive Chart (Right or Center)**
 -   Line chart plotting `tpm` on the Y-axis vs `time` on the X-axis.
@@ -85,14 +86,9 @@ The application SHOULD look extremely premium, adopting a "Glassmorphic Dashboar
 
 ### B. Analytical Calculations
 1.  **Bucket Aggregation**: Calculate tokens using the detected interval $M$ (in minutes): `tokens_per_bucket = TPM * M`.
-2.  **Simulation Loop**:
-    *   Accept a range of GSU candidates (e.g., presets: 20, 50, 100, or a list generated dynamically centered around the mean).
-    *   For each GSU value:
-        *   `threshold = GSU_Units * TPM_per_GSU`.
-        *   Calculate Spillover: `sum(max(0, row.tpm - threshold) * M)`.
-        *   Calculate Provisioned Used: `sum(min(row.tpm, threshold) * M)`.
-        *   Calculate PT Util rate: `USED / TOTAL_AVAILABLE`.
-        *   Compute Month-based costs equivalent to **generate_cost_table.py**.
+2.  **Simulation Continuous Sweep**:
+    *   Accept presets ranges or evaluate ranges dynamically centring surrounding exact Grid Search algorithms frames finding absolute solvers securely structures correctly.
+    *   **Tiering Solvers Logic**: Waterfall cascading algorithms framing. Refer into [tiering.spec.md](tiering.spec.md) for actual tiers priorities cascading algorithms maps securely setups cascades frames framework accurately.
 
 > [!TIP]
 > **Efficient Porting to JS (Single-Page App)**
@@ -113,8 +109,6 @@ The application SHOULD look extremely premium, adopting a "Glassmorphic Dashboar
 ---
 
 ## 7. Reference Implementations
-
-The application logic replicates calculations verified in existing Python scripts within the repository:
-*   `generate_cost_table.py`: Defines the exact table metrics, default multipliers, and arithmetic used for Provisioned Throughput cost comparisons vs Pay-as-you-go Spillover calculations.
-*   `plot_with_threshold.py`: Displays visual mapping of Threshold line overlays on token timeseries aggregates.
-*   **Ground Truth Values**: Code behavior MUST replicate the output formats verified when testing natively with `example_data.csv`.
+The application logic replicates calculations verified inside specs anchors nodes anchor accurately layouts:
+*   **[tiering.spec.md](tiering.spec.md)**: Defines the absolute multi-tiered multipliers overlays caps arithmetic waterfalling setups frames.
+*   **[README.md](README.md)**: Outlines expected format conditions limits framing securely frameworks.
