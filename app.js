@@ -17,7 +17,14 @@ const paramOutputRate = document.getElementById('param-output_rate');
 const paramRatio = document.getElementById('param-ratio');
 const paramPaygoMult = document.getElementById('param-paygo_mult');
 
-const sliders = [paramTpmGsu, paramGsuCost, paramInputRate, paramOutputRate, paramRatio, paramPaygoMult];
+// Tiers toggles & bounds sliders
+const enablePt = document.getElementById('enable-pt');
+const enablePriority = document.getElementById('enable-priority');
+const enableStandard = document.getElementById('enable-standard');
+const paramMaxPrio = document.getElementById('param-max_priority');
+const paramMaxStd = document.getElementById('param-max_standard');
+
+const sliders = [paramTpmGsu, paramGsuCost, paramInputRate, paramOutputRate, paramRatio, paramPaygoMult, paramMaxPrio, paramMaxStd];
 
 // Event Listeners for file upload
 dropZone.addEventListener('click', () => fileInput.click());
@@ -73,6 +80,39 @@ sliders.forEach(slider => {
     });
 });
 
+// Toggles Trigger Updates
+[enablePt, enablePriority, enableStandard].forEach(cb => {
+    cb.addEventListener('change', () => {
+        if (parsedData.length > 0) {
+            runSimulation();
+            renderChart();
+        }
+    });
+});
+
+// Unlimited Toggles listeners
+const unlimitedPriority = document.getElementById('unlimited-priority');
+const unlimitedStandard = document.getElementById('unlimited-standard');
+
+[unlimitedPriority, unlimitedStandard].forEach(cb => {
+    cb.addEventListener('change', (e) => {
+        const isPriority = e.target.id === 'unlimited-priority';
+        const slider = isPriority ? paramMaxPrio : paramMaxStd;
+        const label = document.getElementById(isPriority ? 'val-max_priority' : 'val-max_standard');
+        
+        slider.disabled = e.target.checked;
+        if (e.target.checked) {
+            label.innerText = "Unlimited";
+        } else {
+            updateLabel(slider.id);
+        }
+        if (parsedData.length > 0) {
+            runSimulation();
+            renderChart();
+        }
+    });
+});
+
 // Calculate Button Trigger
 document.getElementById('calc-btn').addEventListener('click', () => {
     if (parsedData.length > 0) {
@@ -97,6 +137,8 @@ function updateLabel(id) {
     if (id === 'param-input_rate') document.getElementById('val-input_rate').innerText = `$${parseFloat(paramInputRate.value).toFixed(2)}`;
     if (id === 'param-output_rate') document.getElementById('val-output_rate').innerText = `$${parseFloat(paramOutputRate.value).toFixed(2)}`;
     if (id === 'param-paygo_mult') document.getElementById('val-paygo_mult').innerText = `${parseFloat(paramPaygoMult.value).toFixed(1)}x`;
+    if (id === 'param-max_priority') document.getElementById('val-max_priority').innerText = Number(paramMaxPrio.value).toLocaleString();
+    if (id === 'param-max_standard') document.getElementById('val-max_standard').innerText = Number(paramMaxStd.value).toLocaleString();
     if (id === 'param-ratio') {
         let inputP = paramRatio.value;
         let outputP = 100 - inputP;
@@ -162,6 +204,13 @@ function runSimulation() {
     const outputRatio = 1 - inputRatio;
     const paygoMult = parseFloat(paramPaygoMult.value);
 
+    // Toggles & Bounds
+    const ptEnabled = enablePt.checked;
+    const prioEnabled = enablePriority.checked;
+    const stdEnabled = enableStandard.checked;
+    const maxPrioTpm = document.getElementById('unlimited-priority').checked ? 500000000 : parseFloat(paramMaxPrio.value);
+    const maxStdTpm = document.getElementById('unlimited-standard').checked ? 500000000 : parseFloat(paramMaxStd.value);
+
     // Pre-aggregations
     let totalTokens = parsedData.reduce((sum, row) => sum + row.tpm * detectedM, 0);
     let peakTpm = Math.max(...parsedData.map(row => row.tpm));
@@ -170,36 +219,74 @@ function runSimulation() {
     document.getElementById('metric-peak_tpm').innerText = (peakTpm / 1_000_000).toFixed(1) + " M";
 
     // Dynamic Sweep to find precise absolute optimal GSU
-    let optimalCand = Math.ceil(peakTpm / tpmPerGsu);
+    let optimalCand = ptEnabled ? Math.ceil(peakTpm / tpmPerGsu) : 0;
     let minCost = Infinity;
-    let minGsuRow = 1;
+    let minGsuRow = ptEnabled ? 1 : 0;
     let sweepCache = {};
 
-    for (let gsu = 1; gsu <= optimalCand; gsu++) {
-        let threshold = gsu * tpmPerGsu;
-        let spilloverTotal = 0;
-        let utilizeTotal = 0;
+    const startGsu = ptEnabled ? 1 : 0;
+    const endGsu = ptEnabled ? optimalCand : 0;
+
+    for (let gsu = startGsu; gsu <= endGsu; gsu++) {
+        let ptThreshold = gsu * tpmPerGsu;
+        
+        let prioThreshold = ptThreshold;
+        if (prioEnabled) prioThreshold += maxPrioTpm;
+
+        let stdThreshold = prioThreshold + maxStdTpm;
+
+        let ptCovered = 0;
+        let prioCovered = 0;
+        let stdCovered = 0;
+        let overflow429 = 0;
 
         parsedData.forEach(row => {
-            spilloverTotal += Math.max(0, row.tpm - threshold) * detectedM;
-            utilizeTotal += Math.min(row.tpm, threshold) * detectedM;
+            let rem = row.tpm;
+
+            // Tier 1 (PT)
+            let currentPt = ptEnabled ? Math.min(rem, ptThreshold) : 0;
+            ptCovered += currentPt * detectedM;
+            rem -= currentPt;
+
+            // Tier 2 (Priority)
+            let currentPrio = prioEnabled ? Math.min(rem, maxPrioTpm) : 0;
+            prioCovered += currentPrio * detectedM;
+            rem -= currentPrio;
+
+            // Tier 3 (Standard)
+            let currentStd = stdEnabled ? Math.min(rem, maxStdTpm) : 0;
+            stdCovered += currentStd * detectedM;
+            rem -= currentStd;
+
+            // Overflow 429
+            overflow429 += rem * detectedM;
         });
 
-        let ptCost = gsu * gsuCost;
-        let totalAvailable = threshold * detectedM * parsedData.length;
-        let utilRate = totalAvailable > 0 ? (utilizeTotal / totalAvailable) * 100 : 0;
+        // Costs
+        let ptCost = gsu * gsuCost; 
+        
+        let prioInput = prioCovered * inputRatio;
+        let prioOutput = prioCovered * outputRatio;
+        let prioCost = ((prioInput / 1000000) * inputRate + (prioOutput / 1000000) * outputRate) * paygoMult;
 
-        let spilledInput = spilloverTotal * inputRatio;
-        let spilledOutput = spilloverTotal * outputRatio;
-        let paygoCost = ((spilledInput / 1000000) * inputRate + (spilledOutput / 1000000) * outputRate) * paygoMult;
-        let totalCombined = ptCost + paygoCost;
+        let stdInput = stdCovered * inputRatio;
+        let stdOutput = stdCovered * outputRatio;
+        let stdCost = ((stdInput / 1000000) * inputRate + (stdOutput / 1000000) * outputRate); // No multiplier
+
+        let totalCombined = ptCost + prioCost + stdCost;
+
+        let totalAvailable = ptThreshold * detectedM * parsedData.length;
+        let utilRate = totalAvailable > 0 ? (ptCovered / totalAvailable) * 100 : 0;
 
         sweepCache[gsu] = {
-            threshold,
+            threshold: ptThreshold,
             ptCost,
             utilRate,
-            spilloverB: spilloverTotal / 1_000_000_000,
-            paygoCost,
+            prioCoveredB: prioCovered / 1_000_000_000,
+            prioCost,
+            stdCoveredB: stdCovered / 1_000_000_000,
+            stdCost,
+            overflowB: overflow429 / 1_000_000_000,
             totalCombined
         };
 
@@ -209,87 +296,139 @@ function runSimulation() {
         }
     }
 
-    document.getElementById('metric-optimal_gsu').innerText = minGsuRow;
+    document.getElementById('metric-optimal_gsu').innerText = ptEnabled ? minGsuRow : "N/A (Disabled)";
     document.getElementById('metric-total_cost').innerText = `$${Math.round(minCost).toLocaleString()}`;
 
-    // Generate Display Candidates Grid surrounding exact optimum
-    let gsuCandidates = [5, 10, 20, 24, 50, 100, 200];
+    // Generate Display Candidates Grid
+    let gsuCandidates = ptEnabled ? [5, 10, 20, 24, 50, 100, 200] : [0];
     let offsets = [-15, -10, -5, 0, 5, 10, 15];
     
-    offsets.forEach(offset => {
-        let cand = minGsuRow + offset;
-        if (cand > 0 && cand <= optimalCand) gsuCandidates.push(cand);
-    });
-
-    gsuCandidates.push(optimalCand);
+    if (ptEnabled) {
+        offsets.forEach(offset => {
+            let cand = minGsuRow + offset;
+            if (cand > 0 && cand <= optimalCand) gsuCandidates.push(cand);
+        });
+        gsuCandidates.push(optimalCand);
+    }
+    
     gsuCandidates = [...new Set(gsuCandidates.sort((a, b) => a - b))];
 
     let tbody = document.querySelector('#simulation-table tbody');
     tbody.innerHTML = '';
-    let simResults = [];
 
     gsuCandidates.forEach(gsu => {
         if (sweepCache[gsu]) {
-            simResults.push({ gsu, ...sweepCache[gsu] });
+            let res = sweepCache[gsu];
+            let tr = document.createElement('tr');
+            if (ptEnabled && gsu === minGsuRow) tr.className = 'best-row';
+
+            tr.innerHTML = `
+                <td>
+                    ${gsu} 
+                    ${ptEnabled && gsu === minGsuRow ? '<span class="status-badge status-optimal">Optimal</span>' : ''}
+                    ${ptEnabled && gsu === optimalCand ? '<span class="status-badge" style="margin-left:5px; background: rgba(34, 211, 238, 0.1); color: var(--primary-cyan); border: 1px solid rgba(34, 211, 238, 0.2); font-size: 0.75rem; padding: 2px 6px; border-radius: 4px;">Peak Cap</span>' : ''}
+                </td>
+                <td>${res.threshold.toLocaleString()}</td>
+                <td>$${res.ptCost.toLocaleString()}</td>
+                <td>${res.utilRate.toFixed(1)}%</td>
+                <td>${(res.prioCoveredB + res.stdCoveredB).toFixed(2)} B</td>
+                <td>$${Math.round(res.prioCost + res.stdCost).toLocaleString()}</td>
+                <td><strong>$${Math.round(res.totalCombined).toLocaleString()}</strong></td>
+            `;
+            tbody.appendChild(tr);
         }
-    });
-
-    // Render Table Rows
-    simResults.forEach(res => {
-        let tr = document.createElement('tr');
-        if (res.gsu === minGsuRow) tr.className = 'best-row';
-
-        tr.innerHTML = `
-            <td>
-                ${res.gsu} 
-                ${res.gsu === minGsuRow ? '<span class="status-badge status-optimal">Optimal</span>' : ''}
-                ${res.gsu === optimalCand ? '<span class="status-badge" style="margin-left:5px; background: rgba(34, 211, 238, 0.1); color: var(--primary-cyan); border: 1px solid rgba(34, 211, 238, 0.2); font-size: 0.75rem; padding: 2px 6px; border-radius: 4px;">Peak Cap</span>' : ''}
-            </td>
-            <td>${res.threshold.toLocaleString()}</td>
-            <td>$${res.ptCost.toLocaleString()}</td>
-            <td>${res.utilRate.toFixed(1)}%</td>
-            <td>${res.spilloverB.toFixed(2)}</td>
-            <td>$${Math.round(res.paygoCost).toLocaleString()}</td>
-            <td><strong>$${Math.round(res.totalCombined).toLocaleString()}</strong></td>
-        `;
-        tbody.appendChild(tr);
     });
 }
 
 function renderChart() {
     const ctx = document.getElementById('tpmChart').getContext('2d');
-    const optimalGsu = parseFloat(document.getElementById('metric-optimal_gsu').innerText);
-    const threshold = optimalGsu * parseFloat(paramTpmGsu.value);
+    const optimalGsuEl = document.getElementById('metric-optimal_gsu').innerText;
+    
+    let optimalGsu = 0;
+    if (optimalGsuEl !== "N/A (Disabled)") {
+        optimalGsu = parseFloat(optimalGsuEl) || 0;
+    }
+
+    const ptEnabled = enablePt.checked;
+    const prioEnabled = enablePriority.checked;
+    const tpmPerGsu = parseFloat(paramTpmGsu.value);
+
+    const unlimitedPrio = document.getElementById('unlimited-priority').checked;
+    const unlimitedStd = document.getElementById('unlimited-standard').checked;
+
+    let ptLimit = ptEnabled ? optimalGsu * tpmPerGsu : 0;
+    let prioLimit = ptLimit + (prioEnabled ? (unlimitedPrio ? 500000000 : parseFloat(paramMaxPrio.value)) : 0);
+    let stdLimit = prioLimit + (unlimitedStd ? 500000000 : parseFloat(paramMaxStd.value));
+
+    // Calculate Y axis scale max to prevent unlimited lines from flattening data peaks
+    const peakTpm = Math.max(...parsedData.map(row => row.tpm));
+    let maxDisplay = peakTpm;
+    if (ptEnabled && ptLimit < peakTpm * 3) maxDisplay = Math.max(maxDisplay, ptLimit);
+    if (prioEnabled && prioLimit < peakTpm * 3) maxDisplay = Math.max(maxDisplay, prioLimit);
+    // Ignore absurdly high unlimited lines
+    const stdEnabledVis = document.getElementById('enable-standard').checked;
+    if (stdEnabledVis && stdLimit < peakTpm * 3) maxDisplay = Math.max(maxDisplay, stdLimit);
+    const yMax = maxDisplay * 1.1;
 
     let dataPoints = parsedData.map(row => ({ x: row.time, y: row.tpm }));
-    let thresholdPoints = parsedData.map(row => ({ x: row.time, y: threshold }));
+
+    let datasets = [{
+        label: 'Actual TPM',
+        data: dataPoints,
+        borderColor: '#22D3EE',
+        backgroundColor: 'rgba(34, 211, 238, 0.02)',
+        borderWidth: 0.5,
+        pointRadius: 0,
+        fill: true,
+        tension: 0.2,
+        order: 5
+    }];
+
+    if (ptEnabled && ptLimit > 0) {
+        datasets.push({
+            label: `PT Limit (${ptLimit.toLocaleString()})`,
+            data: parsedData.map(row => ({ x: row.time, y: ptLimit })),
+            borderColor: '#F87171', // Red
+            borderDash: [5, 5],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false,
+            order: 1
+        });
+    }
+
+    if (prioEnabled) {
+        datasets.push({
+            label: `Priority Limit (${prioLimit.toLocaleString()})`,
+            data: parsedData.map(row => ({ x: row.time, y: prioLimit })),
+            borderColor: '#FBBF24', // Amber
+            borderDash: [5, 5],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false,
+            order: 2
+        });
+    }
+
+    const stdEnabledLayout = document.getElementById('enable-standard').checked;
+    if (stdEnabledLayout) {
+        datasets.push({
+            label: `Standard Limit (${stdLimit.toLocaleString()})`,
+            data: parsedData.map(row => ({ x: row.time, y: stdLimit })),
+            borderColor: '#10B981', // Emerald
+            borderDash: [5, 5],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false,
+            order: 3
+        });
+    }
 
     if (chartInstance) chartInstance.destroy();
 
     chartInstance = new Chart(ctx, {
         type: 'line',
-        data: {
-            datasets: [{
-                label: 'Actual TPM',
-                data: dataPoints,
-                borderColor: '#22D3EE',
-                backgroundColor: 'rgba(34, 211, 238, 0.02)',
-                borderWidth: 0.5,
-                pointRadius: 0,
-                fill: true,
-                tension: 0.2,
-                order: 2
-            }, {
-                label: `Threshold (${threshold.toLocaleString()} TPM)`,
-                data: thresholdPoints,
-                order: 1,
-                borderColor: '#F87171',
-                borderDash: [5, 5],
-                borderWidth: 1.5,
-                pointRadius: 0,
-                fill: false
-            }]
-        },
+        data: { datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
@@ -319,6 +458,7 @@ function renderChart() {
                     grid: { color: 'rgba(255,255,255,0.02)' }
                 },
                 y: {
+                    max: yMax,
                     ticks: {
                         color: '#9CA3AF',
                         callback: function(value) { return (value / 1000000).toFixed(1) + 'M'; }

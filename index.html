@@ -55,8 +55,47 @@
             </div>
 
             <div class="form-group">
-                <label>PayGo Multiplier <span id="val-paygo_mult">1.8x</span></label>
+                <label>Priority PayGo Multiplier <span id="val-paygo_mult">1.8x</span></label>
                 <input type="range" id="param-paygo_mult" min="1.0" max="3.0" step="0.1" value="1.8">
+            </div>
+
+            <div class="form-title">Tiers Configuration</div>
+            
+            <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <input type="checkbox" id="enable-pt" checked style="width: auto; cursor: pointer;">
+                <label for="enable-pt" style="margin-bottom:0; cursor: pointer;">Enable PT Tier</label>
+            </div>
+            
+            <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <input type="checkbox" id="enable-priority" checked style="width: auto; cursor: pointer;">
+                <label for="enable-priority" style="margin-bottom:0; cursor: pointer;">Enable Priority Tier</label>
+            </div>
+
+            <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                <input type="checkbox" id="enable-standard" checked style="width: auto; cursor: pointer;">
+                <label for="enable-standard" style="margin-bottom:0; cursor: pointer;">Enable Standard Tier</label>
+            </div>
+
+            <div class="form-group" id="group-max-priority">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label style="margin-bottom:0;">Max Prio TPM <span id="val-max_priority">4,000,000</span></label>
+                    <div style="display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; opacity: 0.8;">
+                        <input type="checkbox" id="unlimited-priority" style="width: auto; cursor: pointer;">
+                        <label for="unlimited-priority" style="margin-bottom:0; cursor: pointer;">Unlimited</label>
+                    </div>
+                </div>
+                <input type="range" id="param-max_priority" min="1000000" max="10000000" step="500000" value="4000000">
+            </div>
+
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label style="margin-bottom:0;">Max Std TPM <span id="val-max_standard">10,000,000</span></label>
+                    <div style="display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; opacity: 0.8;">
+                        <input type="checkbox" id="unlimited-standard" style="width: auto; cursor: pointer;">
+                        <label for="unlimited-standard" style="margin-bottom:0; cursor: pointer;">Unlimited</label>
+                    </div>
+                </div>
+                <input type="range" id="param-max_standard" min="1000000" max="25000000" step="1000000" value="10000000">
             </div>
 
             <button id="calc-btn" class="calc-btn">Calculate</button>

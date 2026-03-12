@@ -1,17 +1,38 @@
-# Gemini Cost Calculator App
+# Vertex AI Gemini Cost Calculator App
 
-This application is designed to analyze LLM token usage (tokens per minute) timeseries data to:
-1.  Generate interactive timeseries graphs showing TPM (Tokens Per Minute) over time.
-2.  Calculate and display cost breakdowns for different Provisioned Throughput (GSU) configurations on Gemini Vertex AI.
-3.  Help find the optimal GSU threshold to minimize costs (balancing Provisioned Cost vs Pay-as-you-go Spillover).
+This client-side single-page application is designed to analyze LLM token usage (Tokens Per Minute - TPM) timeseries data to calculate and find optimal Provisioned Throughput configurations on Gemini Vertex AI.
 
-## Features
--   **Drag-and-Drop CSV Interface**: Upload your `timestamp_timeseries.csv` file directly in the browser.
--   **Interactive Graphs**: View TPM over time with visual indicators for GSU capacity thresholds.
--   **Dynamic Cost Calculations**: Adjust pricing parameters (GSU cost, input/output token rates) and see calculations update in real-time.
--   **Cost Comparison Table**: Compare multiple GSU levels to find the most cost-effective option.
+![Gemini Cost Optimizer Dashboard](screenshot.png)
 
-## Reference Files
--   `generate_cost_table.py`: Original Python script for cost calculations.
--   `plot_with_threshold.py`: Original Python script for visual plotting.
--   `example_data.csv`: Sample dataset for testing.
+## 🚀 Core Functionalities
+1.  **Automatic Resolution Sweeps**: Dynamically evaluates timestamps offsets detecting bucket intervals (e.g., 1-minute, 5-minute) and translates metrics reducing multipliers natively accurately.
+2.  **True Optima Solvers**: Employs continuous numerical Grid Search loops finding exact integer continuous parameters balancing provisioned nodes workloads pricing balancing exact boundaries setups securely setup streams efficiently.
+3.  **Surrounding Density Benchmarks**: Automatically populates comparison tables overlaid focusing dense candicates matrices layouts accurately.
+
+## ✨ Features
+-   **Dashboard Loaders**: Drag-and-drop or select target CSV files natively.
+-   **Box Drag-to-Zoom Visuals**: Drag cursors over timeframes zooming focuses continuous timelines frames setup. Click `Reset Zoom` snaps ranges directly.
+-   **Dynamic Threshold Indicators**: View layouts synchronization synchronization overlay overlays overlay overlay overlay accurately.
+
+## 📂 Project Anatomy
+-   **Dashboard Views**: `index.html`, `style.css`, `app.js` (Zero dependencies server layout frameworks frameworks strictly single frame setups).
+-   **Local Samples** (`my_sample_csv/`): Private buffers storage zone (Gitignored locally securely).
+-   **Utilities** (`utils/`): Scripts (such as `fix_csv.py`) supporting mapping alternative formatting matrices schemas pipelines seamlessly seamless setups.
+
+## 📊 Expected CSV Format
+The dashboard expects a CSV containing at least `time` and `tpm` headers:
+```csv
+time,tpm
+2026-03-12T10:00:00Z,4500000
+2026-03-12T10:01:00Z,4720000
+2026-03-12T10:02:00Z,5100000
+```
+> [!NOTE]
+> **Data Resolution**: The calculator automatically averages time buckets intervals. If the snapshot frequency averages 10-minutes, the simulation assumes the `tpm` rate represents the uniform average rate within that absolute block layout.
+
+## ⚙️ Running Locally
+Simply run a background files frame listener securely:
+```bash
+python3 -m http.server 8000
+```
+Then navigate into **[http://localhost:8000/](http://localhost:8000/)** or execute the testing template link trigger safely at **[http://localhost:8000/?test=true](http://localhost:8000/?test=true)**!
