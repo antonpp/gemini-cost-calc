@@ -26,7 +26,7 @@ fileInput.addEventListener('change', handleFileSelect);
 // Auto-run test if requested via URL param (Local server required)
 document.addEventListener('DOMContentLoaded', () => {
     if (window.location.search.includes('test=true')) {
-        fetch('example_data.csv')
+        fetch('my_sample_csv/sample_00.csv')
             .then(res => res.text())
             .then(csvText => {
                 Papa.parse(csvText, {
@@ -273,8 +273,8 @@ function renderChart() {
                 label: 'Actual TPM',
                 data: dataPoints,
                 borderColor: '#22D3EE',
-                backgroundColor: 'rgba(34, 211, 238, 0.05)',
-                borderWidth: 2,
+                backgroundColor: 'rgba(34, 211, 238, 0.02)',
+                borderWidth: 0.5,
                 pointRadius: 0,
                 fill: true,
                 tension: 0.2,
