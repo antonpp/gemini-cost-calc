@@ -20,6 +20,12 @@
 
         <!-- Sidebar / Control Panel -->
         <div class="glass-panel">
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+                <label for="model-preset">Model Preset</label>
+                <select id="model-preset" class="glass-select">
+                </select>
+            </div>
+
             <div id="drop-zone" class="drop-zone">
                 <i class="fa-solid fa-cloud-arrow-up"></i>
                 <p>Drag & Drop CSV File here</p>
@@ -31,7 +37,7 @@
             
             <div class="form-group">
                 <label>TPM per GSU <span id="val-tpm_gsu">30,000</span></label>
-                <input type="range" id="param-tpm_gsu" min="10000" max="60000" step="5000" value="30000">
+                <input type="range" id="param-tpm_gsu" min="10000" max="300000" step="100" value="30000">
             </div>
 
             <div class="form-group">
@@ -84,7 +90,7 @@
                         <label for="unlimited-priority" style="margin-bottom:0; cursor: pointer;">Unlimited</label>
                     </div>
                 </div>
-                <input type="range" id="param-max_priority" min="1000000" max="10000000" step="500000" value="4000000">
+                <input type="range" id="param-max_priority" min="1000000" max="50000000" step="100000" value="4000000">
             </div>
 
             <div class="form-group">
@@ -95,7 +101,7 @@
                         <label for="unlimited-standard" style="margin-bottom:0; cursor: pointer;">Unlimited</label>
                     </div>
                 </div>
-                <input type="range" id="param-max_standard" min="1000000" max="25000000" step="1000000" value="10000000">
+                <input type="range" id="param-max_standard" min="1000000" max="50000000" step="100000" value="10000000">
             </div>
 
             <button id="calc-btn" class="calc-btn">Calculate</button>

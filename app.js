@@ -1,3 +1,34 @@
+// Model Presets Data
+const MODEL_PRESETS = {
+    "Gemini 3.1 Pro (Preview)": {
+        tpmPerGsu: 30000,
+        gsuCost: 2000,
+        inputRate: 2.00,
+        outputRate: 12.00,
+        paygoMult: 1.8,
+        maxPrio: 2000000,
+        maxStd: 2000000
+    },
+    "Gemini 3 Flash (Preview)": {
+        tpmPerGsu: 120900,
+        gsuCost: 2000,
+        inputRate: 0.50,
+        outputRate: 3.00,
+        paygoMult: 1.8,
+        maxPrio: 10000000,
+        maxStd: 10000000
+    },
+    "Gemini 3.1 Flash-Lite (Preview)": {
+        tpmPerGsu: 241800,
+        gsuCost: 2000,
+        inputRate: 0.25,
+        outputRate: 1.50,
+        paygoMult: 1.8,
+        maxPrio: 10000000,
+        maxStd: 10000000
+    }
+};
+
 // State Variables
 let parsedData = [];
 let detectedM = 5; // Default bucket multiplier
@@ -32,6 +63,8 @@ fileInput.addEventListener('change', handleFileSelect);
 
 // Auto-run test if requested via URL param (Local server required)
 document.addEventListener('DOMContentLoaded', () => {
+    initPresets();
+
     if (window.location.search.includes('test=true')) {
         fetch('my_sample_csv/sample_00.csv')
             .then(res => res.text())
@@ -129,6 +162,56 @@ document.getElementById('reset-zoom').addEventListener('click', () => {
         document.getElementById('reset-zoom').style.display = 'none';
     }
 });
+
+function initPresets() {
+    const select = document.getElementById('model-preset');
+    if (!select) return;
+
+    // Populate options
+    for (const model in MODEL_PRESETS) {
+        const option = document.createElement('option');
+        option.value = model;
+        option.textContent = model;
+        select.appendChild(option);
+    }
+
+    // Listener
+    select.addEventListener('change', (e) => {
+        applyPreset(e.target.value);
+    });
+
+    // Apply first preset
+    applyPreset(Object.keys(MODEL_PRESETS)[0]);
+}
+
+function applyPreset(modelName) {
+    const preset = MODEL_PRESETS[modelName];
+    if (!preset) return;
+
+    paramTpmGsu.value = preset.tpmPerGsu;
+    paramGsuCost.value = preset.gsuCost;
+    paramInputRate.value = preset.inputRate;
+    paramOutputRate.value = preset.outputRate;
+    paramPaygoMult.value = preset.paygoMult;
+    
+    paramMaxPrio.value = preset.maxPrio;
+    paramMaxStd.value = preset.maxStd;
+
+    // Uncheck unlimited
+    document.getElementById('unlimited-priority').checked = false;
+    document.getElementById('unlimited-standard').checked = false;
+    paramMaxPrio.disabled = false;
+    paramMaxStd.disabled = false;
+
+    // Update labels
+    updateLabel('param-tpm_gsu');
+    updateLabel('param-gsu_cost');
+    updateLabel('param-input_rate');
+    updateLabel('param-output_rate');
+    updateLabel('param-paygo_mult');
+    updateLabel('param-max_priority');
+    updateLabel('param-max_standard');
+}
 
 
 function updateLabel(id) {
