@@ -4,6 +4,18 @@ This client-side single-page application is designed to analyze LLM token usage 
 
 ![Gemini Cost Optimizer Dashboard](screenshot.png)
 
+## ⚙️ Running Locally
+
+Clone the repository and start a local server:
+```bash
+git clone https://github.com/antonpp/gemini-cost-calc.git
+cd gemini-cost-calc
+python3 -m http.server 8000
+```
+Then navigate to **[http://localhost:8000/](http://localhost:8000/)** or use the test URL **[http://localhost:8000/?test=true](http://localhost:8000/?test=true)**!
+
+---
+
 ## 🚀 Core Functionalities
 1.  **Automatic Resolution Sweeps**: Dynamically evaluates timestamps offsets detecting bucket intervals (e.g., 1-minute, 5-minute) and translates metrics reducing multipliers natively accurately.
 2.  **True Optima Solvers**: Employs continuous numerical Grid Search loops finding exact integer continuous parameters balancing provisioned nodes workloads pricing balancing exact boundaries setups securely setup streams efficiently.
@@ -30,9 +42,3 @@ time,tpm
 > [!NOTE]
 > **Data Resolution**: The calculator automatically averages time buckets intervals. If the snapshot frequency averages 10-minutes, the simulation assumes the `tpm` rate represents the uniform average rate within that absolute block layout.
 
-## ⚙️ Running Locally
-Simply run a background files frame listener securely:
-```bash
-python3 -m http.server 8000
-```
-Then navigate into **[http://localhost:8000/](http://localhost:8000/)** or execute the testing template link trigger safely at **[http://localhost:8000/?test=true](http://localhost:8000/?test=true)**!

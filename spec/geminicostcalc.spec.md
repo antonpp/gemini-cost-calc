@@ -49,6 +49,7 @@ The application SHOULD look extremely premium, adopting a "Glassmorphic Dashboar
 ### Main Layout (Grid or Flex)
 
 #### **Panel A: Configuration & Upload (Left or Top)**
+0.  **Model Preset**: Dropdown at the top to select specific Gemini models and auto-populate all rate/capacity parameters dynamically without auto-recalculating.
 1.  **Drop Zone**: Large, dashed border box with icon for direct drag-and-drop integration. Alternatively, a "Select File" button.
 2.  **Parameters Form**:
     *   **Global Layout**: `TPM per GSU`, `GSU Cost / Month`, rates pointers.
@@ -111,4 +112,5 @@ The application SHOULD look extremely premium, adopting a "Glassmorphic Dashboar
 ## 7. Reference Implementations
 The application logic replicates calculations verified inside specs anchors nodes anchor accurately layouts:
 *   **[tiering.spec.md](tiering.spec.md)**: Defines the absolute multi-tiered multipliers overlays caps arithmetic waterfalling setups frames.
+*   **[presets.spec.md](presets.spec.md)**: Defines preset configurations coefficients pricing limits bounds for visual selections setup frames securely.
 *   **[README.md](README.md)**: Outlines expected format conditions limits framing securely frameworks.
