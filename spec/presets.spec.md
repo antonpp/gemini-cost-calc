@@ -7,36 +7,39 @@ This document defines the preset configurations for Gemini models on Vertex AI t
 ### 1. Gemini 3.1 Pro (Preview)
 *   `standard paygo rate: input`: $2.00
 *   `standard paygo rate: output`: $12.00
-*   `max TPM Standard PayGo capacity`: 10000000
+*   `max TPM Standard PayGo capacity`: 2000000
 *   `tpm per gsu`: 30000
 *   `gsu cost / month`: 2000
 *   `priority multiplier`: 1.8
-*   `max TPM Priority PayGocapacity`: 4000000
+*   `max TPM Priority PayGocapacity`: 2000000
 
 ---
 
 ### 2. Gemini 3 Flash (Preview)
 *   `standard paygo rate: input`: $0.50
 *   `standard paygo rate: output`: $3.00
-*   `max TPM Standard PayGo capacity`: 40000000
-*   `tpm per gsu`: 120000
+*   `max TPM Standard PayGo capacity`: 10000000
+*   `tpm per gsu`: 120900
 *   `gsu cost / month`: 2000
 *   `priority multiplier`: 1.8
-*   `max TPM Priority PayGocapacity`: 16000000
+*   `max TPM Priority PayGocapacity`: 10000000
 
 ---
 
 ### 3. Gemini 3.1 Flash-Lite (Preview)
 *   `standard paygo rate: input`: $0.25
 *   `standard paygo rate: output`: $1.50
-*   `max TPM Standard PayGo capacity`: 80000000
-*   `tpm per gsu`: 240000
+*   `max TPM Standard PayGo capacity`: 10000000
+*   `tpm per gsu`: 241800
 *   `gsu cost / month`: 2000
 *   `priority multiplier`: 1.8
-*   `max TPM Priority PayGocapacity`: 32000000
+*   `max TPM Priority PayGocapacity`: 10000000
 
 ---
 
 ## Derivation Notes
-*   **Pricing**: Sourced from Vertex AI public rates for Gemini 3 / 3.1 models.
-*   **Scale Units (GSU)**: Since exact GSU burndown rates for preview models vary, TPM capacity limits for Flash variants are scaled proportionally from the Pro base (30,000 TPM/GSU) to maintain cost-efficiency parity relative to standard pricing.
+*   **Pricing & Multiplier**: Sourced from Vertex AI public rates (Standard & Priority) for Gemini 3 / 3.1 models.
+*   **Scale Units (GSU)**: Calculated from "Per-second throughput per GSU" rates multiplied by 60.
+*   **Capacity (Max TPM)**: Sourced from Vertex AI Standard PayGo Baseline Throughput for **Tier 3** spend level ($2000+ rolling 30-day spend).
+*   **Simplification**: Priority capacity capped at Standard levels; ramping ignored.
+*   **Updated**: 2026-03-19
