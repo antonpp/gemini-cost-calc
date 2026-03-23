@@ -215,9 +215,14 @@ tr:hover {
     background: rgba(255, 255, 255, 0.02);
 }
 
-tr.best-row {
-    background: rgba(16, 185, 129, 0.1);
-    border-left: 4px solid var(--success);
+#simulation-table tbody tr:hover {
+    background: rgba(34, 211, 238, 0.15);
+    transition: background 0.15s ease;
+}
+
+tr.selected-row {
+    background: rgba(34, 211, 238, 0.1);
+    border-left: 4px solid var(--primary-cyan);
 }
 
 .status-badge {
@@ -264,4 +269,27 @@ tr.best-row {
 
 .calc-btn:active {
     transform: translateY(0px);
+}
+
+.calc-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(11, 15, 25, 0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.calc-msg {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--primary-cyan);
+    letter-spacing: 2px;
+    text-transform: uppercase;
 }

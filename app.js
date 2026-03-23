@@ -33,6 +33,7 @@ const MODEL_PRESETS = {
 let parsedData = [];
 let detectedM = 5; // Default bucket multiplier
 let chartInstance = null;
+let selectedGsuOverride = null;
 
 // DOM Elements
 const dropZone = document.getElementById('drop-zone');
@@ -80,8 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 tpm: parseFloat(row.tpm) || 0
                             })).sort((a, b) => a.time - b.time);
                         detectResolution();
-                        runSimulation();
-                        renderChart();
+                        processCalculation();
                     }
                 });
             });
@@ -117,8 +117,7 @@ sliders.forEach(slider => {
 [enablePt, enablePriority, enableStandard].forEach(cb => {
     cb.addEventListener('change', () => {
         if (parsedData.length > 0) {
-            runSimulation();
-            renderChart();
+            processCalculation();
         }
     });
 });
@@ -140,8 +139,7 @@ const unlimitedStandard = document.getElementById('unlimited-standard');
             updateLabel(slider.id);
         }
         if (parsedData.length > 0) {
-            runSimulation();
-            renderChart();
+            processCalculation();
         }
     });
 });
@@ -149,8 +147,8 @@ const unlimitedStandard = document.getElementById('unlimited-standard');
 // Calculate Button Trigger
 document.getElementById('calc-btn').addEventListener('click', () => {
     if (parsedData.length > 0) {
-        runSimulation();
-        renderChart();
+        selectedGsuOverride = null;
+        processCalculation();
     } else {
         alert("Please upload a CSV file first.");
     }
@@ -249,9 +247,9 @@ function handleFileUpdate(file) {
                         tpm: parseFloat(row.tpm) || 0
                     })).sort((a, b) => a.time - b.time);
 
+                selectedGsuOverride = null;
                 detectResolution();
-                runSimulation();
-                renderChart();
+                processCalculation();
             } else {
                 alert("Invalid CSV format. Ensure 'time' and 'tpm' headers are present.");
             }
@@ -379,8 +377,21 @@ function runSimulation() {
         }
     }
 
-    document.getElementById('metric-optimal_gsu').innerText = ptEnabled ? minGsuRow : "N/A (Disabled)";
-    document.getElementById('metric-total_cost').innerText = `$${Math.round(minCost).toLocaleString()}`;
+    let displayGsu = ptEnabled ? (selectedGsuOverride !== null ? selectedGsuOverride : minGsuRow) : "N/A (Disabled)";
+    document.getElementById('metric-optimal_gsu').innerText = displayGsu;
+    
+    // Change label title based on selection
+    const labelH4 = document.getElementById('metric-optimal_gsu').previousElementSibling;
+    if (labelH4) {
+        labelH4.innerText = (selectedGsuOverride !== null) ? "Selected GSU" : "Optimal GSU";
+    }
+
+    // Recompute total cost for the selected GSU if overridden to display in the UI (optional, but good for accuracy)
+    let displayCost = minCost;
+    if (selectedGsuOverride !== null && sweepCache[selectedGsuOverride]) {
+        displayCost = sweepCache[selectedGsuOverride].totalCombined;
+    }
+    document.getElementById('metric-total_cost').innerText = `$${Math.round(displayCost).toLocaleString()}`;
 
     // Generate Display Candidates Grid
     let gsuCandidates = ptEnabled ? [5, 10, 20, 24, 50, 100, 200] : [0];
@@ -403,13 +414,27 @@ function runSimulation() {
         if (sweepCache[gsu]) {
             let res = sweepCache[gsu];
             let tr = document.createElement('tr');
-            if (ptEnabled && gsu === minGsuRow) tr.className = 'best-row';
+            tr.style.cursor = ptEnabled ? 'pointer' : 'default';
+
+            let isSelected = false;
+            if (ptEnabled) {
+                if (selectedGsuOverride !== null && gsu === selectedGsuOverride) {
+                    isSelected = true;
+                } else if (selectedGsuOverride === null && gsu === minGsuRow) {
+                    isSelected = true;
+                }
+            }
+
+            if (isSelected) tr.className = 'selected-row';
+            // Keep green status-optimal badge for actual best
+            let optimalBadge = (ptEnabled && gsu === minGsuRow) ? '<span class="status-badge status-optimal">Optimal</span>' : '';
+            let peakBadge = (ptEnabled && gsu === optimalCand) ? '<span class="status-badge" style="margin-left:5px; background: rgba(34, 211, 238, 0.1); color: var(--primary-cyan); border: 1px solid rgba(34, 211, 238, 0.2); font-size: 0.75rem; padding: 2px 6px; border-radius: 4px;">Peak Cap</span>' : '';
 
             tr.innerHTML = `
                 <td>
                     ${gsu} 
-                    ${ptEnabled && gsu === minGsuRow ? '<span class="status-badge status-optimal">Optimal</span>' : ''}
-                    ${ptEnabled && gsu === optimalCand ? '<span class="status-badge" style="margin-left:5px; background: rgba(34, 211, 238, 0.1); color: var(--primary-cyan); border: 1px solid rgba(34, 211, 238, 0.2); font-size: 0.75rem; padding: 2px 6px; border-radius: 4px;">Peak Cap</span>' : ''}
+                    ${optimalBadge}
+                    ${peakBadge}
                 </td>
                 <td>${res.threshold.toLocaleString()}</td>
                 <td>$${res.ptCost.toLocaleString()}</td>
@@ -418,6 +443,14 @@ function runSimulation() {
                 <td>$${Math.round(res.prioCost + res.stdCost).toLocaleString()}</td>
                 <td><strong>$${Math.round(res.totalCombined).toLocaleString()}</strong></td>
             `;
+
+            tr.addEventListener('click', () => {
+                if (ptEnabled) {
+                    selectedGsuOverride = gsu;
+                    processCalculation();
+                }
+            });
+
             tbody.appendChild(tr);
         }
     });
@@ -551,4 +584,16 @@ function renderChart() {
             }
         }
     });
+}
+
+function processCalculation() {
+    const overlay = document.getElementById('calc-overlay');
+    if (overlay) overlay.style.display = 'flex';
+    
+    // Give browser ~50ms to paint the overlay
+    setTimeout(() => {
+        runSimulation();
+        renderChart();
+        if (overlay) overlay.style.display = 'none';
+    }, 50);
 }
