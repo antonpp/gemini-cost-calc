@@ -113,48 +113,80 @@
 
         <!-- Main Dashboard View -->
         <div class="glass-panel" style="position: relative;">
-            <button id="reset-zoom" class="calc-btn" style="width:auto; padding:0.4rem 0.8rem; font-size:0.8rem; position:absolute; top:1.5rem; right:1.5rem; z-index:10; display:none; margin-top:0;">Reset Zoom</button>
-            <div class="chart-wrapper">
-                <canvas id="tpmChart"></canvas>
+            <!-- Welcome State (Empty State) -->
+            <div id="welcome-state">
+                <div class="welcome-header">
+                    <h2><i class="fa-solid fa-chart-pie"></i> Welcome to Gemini Cost Optimizer</h2>
+                    <p>Get started by uploading your TPM usage data. All analysis is performed client-side in your browser—your data never leaves your device.</p>
+                </div>
+
+                <div id="large-drop-zone" class="large-drop-zone">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <h3>Drag & Drop CSV File here</h3>
+                    <p>or Click to Browse</p>
+                </div>
+
+                <div class="welcome-info-grid">
+                    <div class="info-card">
+                        <h4><i class="fa-solid fa-table-list"></i> Expected CSV Format</h4>
+                        <pre><code>time,tpm
+2026-03-12T10:00:00Z,4500000
+2026-03-12T10:01:00Z,4720000</code></pre>
+                        <p class="muted-text">Requires at least <code>time</code> and <code>tpm</code> headers.</p>
+                    </div>
+
+                    <div class="info-card">
+                        <h4><i class="fa-brands fa-github"></i> Support & Feature Requests</h4>
+                        <p>Questions, bugs, or feature requests? Track them on my GitHub Issues page:<br><a href="https://github.com/antonpp/gemini-cost-calc/issues" target="_blank" style="color: var(--primary-cyan); font-size: 0.85rem;">https://github.com/antonpp/gemini-cost-calc/issues</a></p>
+                    </div>
+                </div>
             </div>
 
-            <div class="metrics-grid">
-                <div class="metric-card">
-                    <h4>Total Tokens</h4>
-                    <p id="metric-total_tokens">-</p>
+            <!-- Active State (Analytics Dashboard) -->
+            <div id="active-state" style="display: none;">
+                <button id="reset-zoom" class="calc-btn" style="width:auto; padding:0.4rem 0.8rem; font-size:0.8rem; position:absolute; top:1.5rem; right:1.5rem; z-index:10; display:none; margin-top:0;">Reset Zoom</button>
+                <div class="chart-wrapper">
+                    <canvas id="tpmChart"></canvas>
                 </div>
-                <div class="metric-card">
-                    <h4>Peak TPM</h4>
-                    <p id="metric-peak_tpm">-</p>
-                </div>
-                <div class="metric-card">
-                    <h4>Optimal GSU</h4>
-                    <p id="metric-optimal_gsu">-</p>
-                </div>
-                <div class="metric-card">
-                    <h4>Est. Total Cost</h4>
-                    <p id="metric-total_cost">-</p>
-                </div>
-            </div>
 
-            <div class="form-title">GSU Comparison Table</div>
-            <div class="table-container">
-                <table id="simulation-table">
-                    <thead>
-                        <tr>
-                            <th>GSU Units</th>
-                            <th>TPM Threshold</th>
-                            <th>PT Cost</th>
-                            <th>Util %</th>
-                            <th>Spillover (B)</th>
-                            <th>PayGo Cost</th>
-                            <th>Total Cost</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Dynamic Rows -->
-                    </tbody>
-                </table>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <h4>Total Tokens</h4>
+                        <p id="metric-total_tokens">-</p>
+                    </div>
+                    <div class="metric-card">
+                        <h4>Peak TPM</h4>
+                        <p id="metric-peak_tpm">-</p>
+                    </div>
+                    <div class="metric-card">
+                        <h4>Optimal GSU</h4>
+                        <p id="metric-optimal_gsu">-</p>
+                    </div>
+                    <div class="metric-card">
+                        <h4>Est. Total Cost</h4>
+                        <p id="metric-total_cost">-</p>
+                    </div>
+                </div>
+
+                <div class="form-title">GSU Comparison Table</div>
+                <div class="table-container">
+                    <table id="simulation-table">
+                        <thead>
+                            <tr>
+                                <th>GSU Units</th>
+                                <th>TPM Threshold</th>
+                                <th>PT Cost</th>
+                                <th>Util %</th>
+                                <th>Spillover (B)</th>
+                                <th>PayGo Cost</th>
+                                <th>Total Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Dynamic Rows -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

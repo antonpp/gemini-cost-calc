@@ -106,6 +106,28 @@ dropZone.addEventListener('drop', (e) => {
     }
 });
 
+const largeDropZone = document.getElementById('large-drop-zone');
+if (largeDropZone) {
+    largeDropZone.addEventListener('click', () => fileInput.click());
+
+    largeDropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        largeDropZone.classList.add('dragover');
+    });
+
+    largeDropZone.addEventListener('dragleave', () => {
+        largeDropZone.classList.remove('dragover');
+    });
+
+    largeDropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        largeDropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            handleFileUpdate(e.dataTransfer.files[0]);
+        }
+    });
+}
+
 // Update slider labels live
 sliders.forEach(slider => {
     slider.addEventListener('input', (e) => {
@@ -592,6 +614,17 @@ function processCalculation() {
     
     // Give browser ~50ms to paint the overlay
     setTimeout(() => {
+        const welcomeState = document.getElementById('welcome-state');
+        const activeState = document.getElementById('active-state');
+
+        if (parsedData.length > 0) {
+            if (welcomeState) welcomeState.style.display = 'none';
+            if (activeState) activeState.style.display = 'block';
+        } else {
+            if (welcomeState) welcomeState.style.display = 'flex';
+            if (activeState) activeState.style.display = 'none';
+        }
+
         runSimulation();
         renderChart();
         if (overlay) overlay.style.display = 'none';

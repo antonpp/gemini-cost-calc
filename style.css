@@ -293,3 +293,156 @@ tr.selected-row {
     letter-spacing: 2px;
     text-transform: uppercase;
 }
+
+/* Welcome State */
+#welcome-state {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    padding: 1rem;
+    min-height: 600px;
+    justify-content: center;
+}
+
+.welcome-header {
+    text-align: center;
+}
+
+.welcome-header h2 {
+    font-size: 2rem;
+    font-weight: 800;
+    background: linear-gradient(to right, var(--primary-cyan), var(--primary-blue));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+}
+
+.welcome-header p {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.large-drop-zone {
+    border: 3px dashed rgba(34, 211, 238, 0.4);
+    border-radius: 20px;
+    padding: 4rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    background: rgba(15, 23, 42, 0.5);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    max-width: 700px;
+    width: 100%;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.large-drop-zone::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at center, rgba(34, 211, 238, 0.1) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.large-drop-zone:hover::before, .large-drop-zone.dragover::before {
+    opacity: 1;
+}
+
+.large-drop-zone:hover, .large-drop-zone.dragover {
+    border-color: var(--primary-cyan);
+    transform: translateY(-5px);
+    box-shadow: 0 10px 40px rgba(34, 211, 238, 0.15);
+}
+
+.large-drop-zone i {
+    font-size: 4rem;
+    background: linear-gradient(45deg, var(--primary-cyan), var(--primary-blue));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.3));
+}
+
+.large-drop-zone h3 {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.large-drop-zone p {
+    color: var(--text-muted);
+}
+
+.welcome-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    max-width: 900px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.welcome-info-grid .info-card {
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.welcome-info-grid .info-card h4 {
+    color: var(--primary-cyan);
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.welcome-info-grid .info-card pre {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.05);
+    font-family: monospace;
+    font-size: 0.9rem;
+    overflow-x: auto;
+}
+
+.welcome-info-grid .info-card code {
+    font-family: 'Courier New', Courier, monospace;
+    color: #E2E8F0;
+}
+
+.welcome-info-grid .info-card .muted-text {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.welcome-footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 1.5rem;
+    max-width: 600px;
+    margin: 0 auto;
+    width: 100%;
+}
