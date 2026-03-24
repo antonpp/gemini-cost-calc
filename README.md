@@ -2,6 +2,8 @@
 
 This client-side single-page application is designed to analyze LLM token usage (Tokens Per Minute - TPM) timeseries data to calculate and find optimal Provisioned Throughput configurations on Gemini Vertex AI.
 
+🚀 **Try it live:** [https://antonpp.github.io/gemini-cost-calc/](https://antonpp.github.io/gemini-cost-calc/)
+
 ![Gemini Cost Optimizer Dashboard](screenshot.png)
 
 ## ⚙️ Running Locally
