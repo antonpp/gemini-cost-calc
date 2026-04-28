@@ -66,7 +66,10 @@ fileInput.addEventListener('change', handleFileSelect);
 document.addEventListener('DOMContentLoaded', () => {
     initPresets();
 
-    if (window.location.search.includes('test=true')) {
+    const urlParams = new URLSearchParams(window.location.search);
+
+    // ?test=true — load a bundled sample CSV
+    if (urlParams.get('test') === 'true') {
         fetch('my_sample_csv/sample_00.csv')
             .then(res => res.text())
             .then(csvText => {
@@ -85,6 +88,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             });
+    }
+
+    // ?file=<relative-path> — load a CSV file served by the local HTTP server
+    // (used by fetch_tpm.py to generate clickable Cloud Shell links)
+    const fileParam = urlParams.get('file');
+    if (fileParam) {
+        loadFileFromUrl(fileParam);
     }
 });
 
@@ -277,6 +287,57 @@ function handleFileUpdate(file) {
             }
         }
     });
+}
+
+/**
+ * Load a CSV from the local HTTP server by relative path.
+ * Called when the app is opened with ?file=<path> — the URL generated
+ * by utils/fetch_tpm.py so users can click-to-load from Cloud Shell.
+ */
+function loadFileFromUrl(filePath) {
+    const banner = document.getElementById('file-load-banner');
+    const bannerName = document.getElementById('file-load-name');
+    const bannerStatus = document.getElementById('file-load-status');
+
+    const fileName = filePath.split('/').pop();
+    if (bannerName) bannerName.textContent = fileName;
+    if (banner) banner.style.display = 'flex';
+    if (bannerStatus) { bannerStatus.textContent = 'Loading…'; bannerStatus.className = 'file-load-status loading'; }
+
+    fetch(filePath)
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            return res.text();
+        })
+        .then(csvText => {
+            Papa.parse(csvText, {
+                header: true,
+                dynamicTyping: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    if (results.data && results.data.length > 0 && 'tpm' in results.data[0]) {
+                        parsedData = results.data
+                            .filter(row => row.time && !isNaN(new Date(row.time).getTime()))
+                            .map(row => ({
+                                time: new Date(row.time),
+                                tpm: parseFloat(row.tpm) || 0
+                            })).sort((a, b) => a.time - b.time);
+
+                        selectedGsuOverride = null;
+                        detectResolution();
+                        processCalculation();
+
+                        if (bannerStatus) { bannerStatus.textContent = `✓ Loaded ${parsedData.length.toLocaleString()} rows`; bannerStatus.className = 'file-load-status success'; }
+                    } else {
+                        if (bannerStatus) { bannerStatus.textContent = "Invalid CSV — missing 'time' or 'tpm' columns"; bannerStatus.className = 'file-load-status error'; }
+                    }
+                }
+            });
+        })
+        .catch(err => {
+            console.error('loadFileFromUrl failed:', err);
+            if (bannerStatus) { bannerStatus.textContent = `Failed: ${err.message}`; bannerStatus.className = 'file-load-status error'; }
+        });
 }
 
 function detectResolution() {

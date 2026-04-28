@@ -12,7 +12,12 @@
 <body>
 
     <div class="container">
-        <!-- Header -->
+        <!-- File-from-URL load banner (shown when ?file= param is present) -->
+        <div id="file-load-banner" style="display:none; grid-column: 1 / -1; align-items:center; gap:0.8rem; background: rgba(34,211,238,0.07); border: 1px solid rgba(34,211,238,0.2); border-radius:10px; padding:0.7rem 1.2rem; font-size:0.88rem; color:var(--text-muted);">
+            <i class="fa-solid fa-file-csv" style="color:var(--primary-cyan); font-size:1.1rem;"></i>
+            <span>Loading <strong id="file-load-name" style="color:#F3F4F6;"></strong> from local server&hellip;</span>
+            <span id="file-load-status" class="file-load-status loading" style="margin-left:auto;"></span>
+        </div>
         <header>
             <h1>Gemini Cost Optimizer</h1>
             <p>Analyze TPM usage to find your optimal Provisioned Throughput setup</p>
@@ -136,7 +141,27 @@
                     </div>
 
                     <div class="info-card">
-                        <h4><i class="fa-brands fa-github"></i> Support & Feature Requests</h4>
+                        <h4><i class="fa-brands fa-google"></i> Cloud Shell Quickstart</h4>
+                        <p style="margin-bottom:0.6rem;">Fetch your real Vertex AI TPM data directly from GCP:</p>
+                        <pre><code># 1. Clone & open
+git clone https://github.com/antonpp/gemini-cost-calc
+cd gemini-cost-calc
+
+# 2. Install dep
+pip install google-cloud-monitoring
+
+# 3. Fetch TPM data (generates one CSV per model)
+python3 utils/fetch_tpm.py \
+  --project YOUR_PROJECT_ID \
+  --days 30
+
+# 4. Serve the app
+python3 -m http.server 8080</code></pre>
+                        <p class="muted-text" style="margin-top:0.5rem;">The script prints <strong>click-to-load URLs</strong> for each model CSV — no drag-and-drop needed.</p>
+                    </div>
+
+                    <div class="info-card">
+                        <h4><i class="fa-brands fa-github"></i> Support &amp; Feature Requests</h4>
                         <p>Questions, bugs, or feature requests? Track them on my GitHub Issues page:<br><a href="https://github.com/antonpp/gemini-cost-calc/issues" target="_blank" style="color: var(--primary-cyan); font-size: 0.85rem;">https://github.com/antonpp/gemini-cost-calc/issues</a></p>
                     </div>
                 </div>

@@ -4,9 +4,14 @@ This specification outlines the design and functionality for a single-page web a
 
 ## 1. Application Overview
 
-**Goal**: A client-side web dashboard where users drag-and-drop a CSV file containing TPM (Tokens Per Minute) timeseries data to view interactive graphs and a cost breakdown table comparing Provisioned Throughput (GSU) vs Pay-as-you-go Pricing.
+**Goal**: A client-side web dashboard where users load a CSV file containing TPM (Tokens Per Minute) timeseries data to view interactive graphs and a cost breakdown table comparing Provisioned Throughput (GSU) vs Pay-as-you-go Pricing.
 
-**Philosophy**: No backend processing. All data remains local in the browser for privacy and speed.
+**Data ingestion paths**:
+1. **Drag-and-drop / file picker** — works in any browser environment.
+2. **URL parameter `?file=<path>`** — app fetches the CSV from the local HTTP server. Used by `utils/fetch_tpm.py` to generate click-to-load links for Cloud Shell users (where drag-and-drop is unavailable).
+3. **`?test=true`** — loads a bundled sample CSV for quick local testing.
+
+**Philosophy**: No backend processing. All analysis runs client-side in the browser — data never leaves the device.
 
 ---
 
@@ -18,25 +23,25 @@ This specification outlines the design and functionality for a single-page web a
 *   **Third-party Libraries (loaded via CDN)**:
     *   **PapaParse**: For robust client-side CSV parsing.
     *   **Chart.js**: For rendering the timeseries line chart with threshold annotations.
-    *   **chartjs-plugin-zoom**: For providing fully fully interactive Drag-and-Zoom pan and resets snapping.
-    *   **FontAwesome (Optional)**: For rich UI icons.
-    *   **Google Fonts**: 'Inter' or 'Outfit' for modern typography.
+    *   **chartjs-plugin-zoom**: For drag-to-zoom on the timeseries chart.
+    *   **FontAwesome**: For UI icons.
+    *   **Google Fonts**: 'Outfit' for modern typography.
 
 ---
 
 ## 3. Design & Aesthetics
 
-The application SHOULD look extremely premium, adopting a "Glassmorphic Dashboard" aesthetic:
+The application adopts a "Glassmorphic Dashboard" aesthetic:
 
-*   **Theme**: Dark Mode default (Deep slate/navy background with subtle radial gradients).
-*   **Cards/Panels**: Translucent backgrounds (`rgba(...)`) with slight backdrop blur (`backdrop-filter: blur()`) and safe borders.
+*   **Theme**: Dark Mode default (deep slate/navy background with subtle radial gradients).
+*   **Cards/Panels**: Translucent backgrounds (`rgba(...)`) with backdrop blur and subtle borders.
 *   **Color Palette**:
     *   Background: `#0B0F19`
     *   Surface: Linear-gradients transitioning to `rgba(30, 41, 59, 0.5)`.
     *   Accent (Actual TPM): Cyan/Blue gradient (`#22D3EE` to `#3B82F6`).
     *   Accent (Threshold): Red/Coral dashed line (`#F87171`).
-*   **Typography**: Clean sans-serif weights, legible sizing, well-spaced values.
-*   **Animations**: Micro-transitions on hover for parameter inputs and buttons. Smooth animations when dataset updates.
+*   **Typography**: Clean sans-serif weights using 'Outfit'.
+*   **Animations**: Micro-transitions on hover; loading overlay during calculation.
 
 ---
 
@@ -46,71 +51,93 @@ The application SHOULD look extremely premium, adopting a "Glassmorphic Dashboar
 -   **Title**: `Gemini Cost Optimizer`
 -   **Subtitle**: `Analyze TPM usage to find your optimal Provisioned Throughput setup`
 
-### Main Layout (Grid or Flex)
+### File-load Banner
+Displayed across the full width when `?file=` is present in the URL. Shows the filename being loaded and a status pill: `Loading…` → `✓ Loaded N rows` or an error message.
 
-#### **Panel A: Configuration & Upload (Left or Top)**
-0.  **Model Preset**: Dropdown at the top to select specific Gemini models and auto-populate all rate/capacity parameters dynamically without auto-recalculating.
-1.  **Drop Zone**: Large, dashed border box with icon for direct drag-and-drop integration. Alternatively, a "Select File" button.
-2.  **Parameters Form**:
-    *   **Global Layout**: `TPM per GSU`, `GSU Cost / Month`, rates pointers.
-    *   **Tiers Config (Toggle Toggles)**:
-        *   `Enable PT` layout limits.
-        *   `Enable Priority` layout & Priority multiplier sliders.
-        *   `Enable Standard` layout bounding frames.
-        *   `Max Prio TPM` and `Max Std TPM` continuous bounds sliders headers incorporating absolute `Unlimited` checkboxes overlays natively securely.
+### Main Layout (two-column grid)
 
-#### **Panel B: Interactive Chart (Right or Center)**
--   Line chart plotting `tpm` on the Y-axis vs `time` on the X-axis.
--   Horizontal dashed line showing the **Selected/Optimal GSU Threshold** capacity.
--   Responsive scaling with time-axis formatting (Hour/Date support).
+#### **Panel A: Configuration & Upload (Left)**
+0.  **Model Preset**: Dropdown to select a Gemini model and auto-populate rate/capacity parameters.
+1.  **Drop Zone**: Dashed border box for drag-and-drop or click-to-browse file upload.
+2.  **Parameters Form**: `TPM per GSU`, `GSU Cost / Month`, input/output rates, input/output split, Priority PayGo multiplier.
+3.  **Tiers Config**: Enable/disable PT, Priority, and Standard tiers; `Max Prio TPM` and `Max Std TPM` sliders with `Unlimited` checkboxes.
 
-#### **Panel C: Cost Breakdown Summary & Table (Bottom)**
-1.  **Metric Cards**:
-    *   Total Tokens calculated.
-    *   Optimal GSU count (suggested).
-    *   Estimated total monthly cost (Optimal vs pure PayGo).
-2.  **Comparison Grid/Table**:
-    *   Columns: `GSU Units`, `TPM Threshold`, `PT Capacity Cost`, `PT Utilization %`, `Spillover (Tokens)`, `PayGo Cost`, `Total Expected Cost`.
-    *   Highlight the row corresponding to the minimum `Total Expected Cost`.
+#### **Panel B: Interactive Chart & Results (Right)**
+-   **Welcome State** (no data loaded): Large drop zone + info cards including a Cloud Shell Quickstart guide.
+-   **Active State** (data loaded):
+    -   Line chart: `tpm` vs `time`, with dashed threshold lines per enabled tier.
+    -   Drag-to-zoom with Reset Zoom button.
+    -   Metric cards: Total Tokens, Peak TPM, Optimal GSU, Est. Total Cost.
+    -   GSU Comparison Table.
 
 ---
 
 ## 5. Functional Requirements (Logic Flow)
 
 ### A. Data Consumption
-1.  Trigger standard listener on `dragover`/`drop` or `.csv` upload inputs.
-2.  Pass data buffer into `Papa.parse`.
-3.  **Validation**: Verify headers `time` and `tpm` are present.
-4.  **Parsing**: Convert strings: `tpm` to Float, `time` to Datetime (JS objects).
-5.  **Resolution Detection**: Analyze intervals between consecutive timestamps to determine bucket duration $M$ (minutes). Support dynamic resolutions (e.g., 1 min, 5 min, 10 min). Minimum supported duration is 1 minute.
 
+#### Path 1 — File drag-and-drop / picker
+1.  `dragover`/`drop` or `<input type="file">` events trigger `handleFileUpdate(file)`.
+2.  File buffer is passed to `Papa.parse`.
+3.  **Validation**: Headers `time` and `tpm` must be present.
+4.  **Parsing**: `tpm` → Float; `time` → JS Date object.
+5.  **Resolution Detection**: Median interval between consecutive timestamps → bucket duration $M$ (minutes). Minimum 1 minute.
+
+#### Path 2 — URL parameter `?file=<relative-path>`
+1.  On `DOMContentLoaded`, read `URLSearchParams`.
+2.  If `file` param is present, call `loadFileFromUrl(path)`.
+3.  Show the file-load banner with a pulsing `Loading…` status pill.
+4.  `fetch(path)` retrieves the CSV from the local HTTP server.
+5.  Same PapaParse → validation → parsing → resolution detection flow as Path 1.
+6.  Banner updates to `✓ Loaded N rows` (success) or an error message (failure).
+
+#### Path 3 — `?test=true`
+1.  Fetches `my_sample_csv/sample_00.csv` from the local server.
+2.  Parses and loads as per Path 1.
 
 ### B. Analytical Calculations
-1.  **Bucket Aggregation**: Calculate tokens using the detected interval $M$ (in minutes): `tokens_per_bucket = TPM * M`.
-2.  **Simulation Continuous Sweep**:
-    *   Accept presets ranges or evaluate ranges dynamically centring surrounding exact Grid Search algorithms frames finding absolute solvers securely structures correctly.
-    *   **Tiering Solvers Logic**: Waterfall cascading algorithms framing. Refer into [tiering.spec.md](tiering.spec.md) for actual tiers priorities cascading algorithms maps securely setups cascades frames framework accurately.
+1.  **Bucket Aggregation**: `tokens_per_bucket = TPM × M` (computed once at parse time).
+2.  **Simulation Sweep**: Grid search over GSU values from 1 to `ceil(peakTPM / tpmPerGSU)`. For each GSU, compute PT cost + Priority PayGo cost + Standard PayGo cost using the waterfall tiering logic defined in [tiering.spec.md](tiering.spec.md).
+3.  **Optimal GSU**: The GSU count that minimises total combined cost.
 
 > [!TIP]
-> **Efficient Porting to JS (Single-Page App)**
-> *   **One-time Aggregation**: Calculate `total_tokens` and pre-calculate `tokens_per_bucket` (row.tpm * M) ONCE during CSV parse instead of every loop execution for sliders/GSU count.
-
-> *   **Single-Pass Simulator Tooling**: Standard JS `Array.prototype.reduce` is extremely fast for dataset sizes `<10k` rows. Avoid rendering or DOM updates *inside* loops.
-> *   **Reactivity**: Trigger loop simulation only on parameter inputs (parameters trigger calculation updates quickly).
-
+> **Performance**: Pre-compute `total_tokens` and `tokens_per_bucket` once at parse time. Use a single `forEach` pass per GSU candidate. Avoid DOM updates inside loops.
 
 ---
 
-## 6. Verification Criteria
+## 6. GCP Data Pipeline (`utils/fetch_tpm.py`)
 
-*   **Static Rendering**: App loads within a single static HTML render without throwing layout-breaking Node errors or script omissions.
-*   **Sample Load**: Drop loaded `example_data.csv` generates a non-null dataset, updates numbers, and plots correctly on the Chart overlay immediately.
-*   **Parameter Sensitivity**: Adjusting any slider pushes a calculated response to the Data Table outputs concurrently.
+This companion script is intended for use in **Google Cloud Shell** to fetch real Vertex AI token usage and generate CSV files directly loadable by the app.
+
+### Metric
+`aiplatform.googleapis.com/publisher/online_serving/token_count`
+
+### Behaviour
+1.  **Interactive prompt — Timeframe**: User selects Last 24h / Last week / Last month / Last 3 months.
+2.  **Fetch**: Queries Cloud Monitoring with 1-minute `ALIGN_SUM` alignment and `REDUCE_SUM` cross-series reduction grouped by `resource.label.model_id`. This sums input + output tokens per model per minute.
+3.  **Interactive prompt — Model selection**: Multi-select from discovered models (displayed with total tokens consumed). Optionally generate a merged `tpm_all_models.csv` in addition to per-model files.
+4.  **Output**: One CSV per selected model (`tpm_<model_id>.csv`) with `time,tpm` headers at 1-minute granularity.
+5.  **Click-to-load URLs**: Prints `http://localhost:<port>/?file=<relative-path>` for each generated file so the user can click to open the app pre-loaded with that model's data.
+
+### Requirements
+*   `pip install google-cloud-monitoring`
+*   `roles/monitoring.viewer` IAM role on the project.
+*   Local HTTP server running from the repo root: `python3 -m http.server 8080`.
 
 ---
 
-## 7. Reference Implementations
-The application logic replicates calculations verified inside specs anchors nodes anchor accurately layouts:
-*   **[tiering.spec.md](tiering.spec.md)**: Defines the absolute multi-tiered multipliers overlays caps arithmetic waterfalling setups frames.
-*   **[presets.spec.md](presets.spec.md)**: Defines preset configurations coefficients pricing limits bounds for visual selections setup frames securely.
-*   **[README.md](README.md)**: Outlines expected format conditions limits framing securely frameworks.
+## 7. Verification Criteria
+
+*   App loads without errors from a static file server (no Node/build step required).
+*   Dropping a valid CSV immediately updates the chart and metrics.
+*   Opening `?file=tpm_example.csv` (with the server running) loads the file and shows the banner.
+*   Adjusting any slider or tier toggle re-runs the simulation and updates the table.
+
+---
+
+## 8. Reference Implementations
+
+*   **[tiering.spec.md](tiering.spec.md)**: Multi-tier waterfall cost arithmetic.
+*   **[presets.spec.md](presets.spec.md)**: Per-model rate and capacity presets.
+*   **[lookup_presets.spec.md](lookup_presets.spec.md)**: Instructions for updating presets from GCP documentation.
+*   **[README.md](../README.md)**: End-user setup and Cloud Shell quickstart guide.
