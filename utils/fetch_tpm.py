@@ -235,8 +235,9 @@ def fetch_timeseries(project_id: str, start_dt: datetime, end_dt: datetime) -> d
     for ts in results:
         model_id = ts.resource.labels.get("model_id", "unknown_model")
         for point in ts.points:
-            bucket_end = point.interval.end_time
-            dt = datetime.fromtimestamp(bucket_end.seconds, tz=timezone.utc)
+            # point.interval.end_time is a DatetimeWithNanoseconds (datetime subclass)
+            dt = point.interval.end_time.replace(tzinfo=timezone.utc)
+            # value may be int64 or double depending on the aggregation
             value = float(point.value.int64_value or point.value.double_value or 0)
             model_data.setdefault(model_id, []).append((dt, value))
 
