@@ -207,8 +207,23 @@ def fetch_timeseries(project_id: str, start_dt: datetime, end_dt: datetime) -> d
     for mid, points in raw_model_data.items():
         merged: dict[datetime, float] = {}
         for dt, val in points:
-            merged[dt] = merged.get(dt, 0.0) + val
-        model_data[mid] = sorted(merged.items())
+            # Round to nearest minute to ensure reliable mapping
+            dt_clean = dt.replace(second=0, microsecond=0)
+            merged[dt_clean] = merged.get(dt_clean, 0.0) + val
+        
+        # ── Zero-padding ──
+        # Ensure every minute in [start_dt, end_dt] is represented
+        padded = []
+        curr = start_dt.replace(second=0, microsecond=0)
+        # We go up to end_dt (exclusive or inclusive? Usually inclusive for charts)
+        # Cloud Monitoring alignment periods usually mean the point at T represents [T-1m, T]
+        limit = end_dt.replace(second=0, microsecond=0)
+        while curr <= limit:
+            val = merged.get(curr, 0.0)
+            padded.append((curr, val))
+            curr += timedelta(minutes=1)
+            
+        model_data[mid] = padded
 
     return model_data
 
