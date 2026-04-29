@@ -233,23 +233,29 @@ def fetch_timeseries(project_id: str, start_dt: datetime, end_dt: datetime) -> d
     )
 
     # ── Discover the model label and collect data ────────────────────────
-    # Candidate label names for the model identifier
-    MODEL_LABEL_CANDIDATES = ["model_id", "model_name", "publisher_model", "model"]
+    # Candidate label names for the model identifier (checked in order)
+    MODEL_LABEL_CANDIDATES = [
+        "model_user_id",    # actual label name on PublisherModel resources
+        "model_id", "model_name", "publisher_model", "model",
+    ]
 
-    model_data: dict[str, list[tuple[datetime, float]]] = {}
+    # Collect raw points per model — input & output arrive as separate series
+    # so we accumulate and merge by timestamp afterwards
+    raw_model_data: dict[str, list[tuple[datetime, float]]] = {}
     model_label_field = None  # will be set on first time series
+    debug_printed = False
 
     for ts in raw_results:
         all_resource_labels = dict(ts.resource.labels)
         all_metric_labels = dict(ts.metric.labels)
 
-        # On first series, discover which label holds the model name
-        if model_label_field is None:
+        # On first series only, discover which label holds the model name
+        if not debug_printed:
+            debug_printed = True
             print(f"  {DIM}DEBUG — Resource type: {ts.resource.type}{RESET}")
             print(f"  {DIM}DEBUG — Resource labels: {all_resource_labels}{RESET}")
             print(f"  {DIM}DEBUG — Metric labels: {all_metric_labels}{RESET}")
 
-            # Search in both resource and metric labels
             for candidate in MODEL_LABEL_CANDIDATES:
                 if candidate in all_resource_labels:
                     model_label_field = ("resource", candidate)
@@ -262,9 +268,9 @@ def fetch_timeseries(project_id: str, start_dt: datetime, end_dt: datetime) -> d
                 src, key = model_label_field
                 print(f"  {DIM}DEBUG — Using {src}.label.{key} as model identifier{RESET}")
             else:
-                print(f"  {DIM}DEBUG — No model label found, all data will be grouped as 'all_models'{RESET}")
+                print(f"  {DIM}DEBUG — No model label found, grouping as 'all_models'{RESET}")
 
-        # Extract model name from the discovered label
+        # Extract model name
         if model_label_field:
             src, key = model_label_field
             labels = all_resource_labels if src == "resource" else all_metric_labels
@@ -275,10 +281,15 @@ def fetch_timeseries(project_id: str, start_dt: datetime, end_dt: datetime) -> d
         for point in ts.points:
             dt = point.interval.end_time.replace(tzinfo=timezone.utc)
             value = float(point.value.int64_value or point.value.double_value or 0)
-            model_data.setdefault(model_id, []).append((dt, value))
+            raw_model_data.setdefault(model_id, []).append((dt, value))
 
-    for mid in model_data:
-        model_data[mid].sort(key=lambda x: x[0])
+    # ── Merge input + output tokens per model per timestamp ──────────────
+    model_data: dict[str, list[tuple[datetime, float]]] = {}
+    for mid, points in raw_model_data.items():
+        merged: dict[datetime, float] = {}
+        for dt, val in points:
+            merged[dt] = merged.get(dt, 0.0) + val
+        model_data[mid] = sorted(merged.items())
 
     return model_data
 
