@@ -232,8 +232,25 @@ def fetch_timeseries(project_id: str, start_dt: datetime, end_dt: datetime) -> d
 
     model_data: dict[str, list[tuple[datetime, float]]] = {}
 
+    debug_printed = False
     for ts in results:
-        model_id = ts.resource.labels.get("model_id", "unknown_model")
+        # Debug: print all available labels on the first time series
+        if not debug_printed:
+            print(f"  {DIM}DEBUG — Resource type: {ts.resource.type}{RESET}")
+            print(f"  {DIM}DEBUG — Resource labels: {dict(ts.resource.labels)}{RESET}")
+            print(f"  {DIM}DEBUG — Metric type: {ts.metric.type}{RESET}")
+            print(f"  {DIM}DEBUG — Metric labels: {dict(ts.metric.labels)}{RESET}")
+            debug_printed = True
+
+        # Try multiple label locations for the model identifier
+        model_id = (
+            ts.resource.labels.get("model_id")
+            or ts.metric.labels.get("model_id")
+            or ts.resource.labels.get("model_name")
+            or ts.metric.labels.get("model_name")
+            or ts.resource.labels.get("publisher_model")
+            or "unknown_model"
+        )
         for point in ts.points:
             # point.interval.end_time is a DatetimeWithNanoseconds (datetime subclass)
             dt = point.interval.end_time.replace(tzinfo=timezone.utc)
