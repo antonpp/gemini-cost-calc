@@ -6,8 +6,8 @@ generate per-model TPM CSV files compatible with the Gemini Cost Optimizer app.
 Usage (Cloud Shell):
     python3 utils/fetch_tpm.py --project MY_PROJECT_ID [--port 8080]
 
-Requirements:
-    pip install google-cloud-monitoring
+Requirements (install in venv):
+    pip install -r requirements.txt
 
 Authentication:
     Runs under the active gcloud credentials (Application Default Credentials).
@@ -27,112 +27,48 @@ import re
 import sys
 from datetime import datetime, timezone, timedelta
 
+try:
+    import questionary
+    from questionary import Style
+except ImportError:
+    print(
+        "\nERROR: 'questionary' is not installed.\n"
+        "       Run:  pip install -r requirements.txt\n",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
 # ---------------------------------------------------------------------------
 # Metric constants
 # ---------------------------------------------------------------------------
 METRIC_TYPE = "aiplatform.googleapis.com/publisher/online_serving/token_count"
-# metric.labels.type  -> "input" | "output"
-# resource.labels.model_id -> e.g. "gemini-1.5-pro-002"
-
 ALIGNMENT_PERIOD_SECONDS = 60  # 1-minute buckets
 
 # ---------------------------------------------------------------------------
-# Interactive prompt helpers
+# Styling
 # ---------------------------------------------------------------------------
-
 CYAN  = "\033[96m"
 GREEN = "\033[92m"
 BOLD  = "\033[1m"
 DIM   = "\033[2m"
 RESET = "\033[0m"
 
+PROMPT_STYLE = Style([
+    ("qmark",       "fg:cyan bold"),
+    ("question",    "fg:white bold"),
+    ("answer",      "fg:cyan bold"),
+    ("pointer",     "fg:cyan bold"),
+    ("highlighted", "fg:cyan bold"),
+    ("selected",    "fg:green"),
+    ("instruction", "fg:#888888"),
+])
 
 def _separator(char="─", width=60):
     print(f"{DIM}{char * width}{RESET}")
 
 
-def prompt_choice(title: str, options: list[str], default: int = 1) -> int:
-    """
-    Print a numbered menu and return the 1-based index of the chosen option.
-    Loops until a valid selection is made.
-    """
-    print()
-    _separator()
-    print(f"{BOLD}{CYAN}{title}{RESET}")
-    _separator()
-    for i, opt in enumerate(options, 1):
-        marker = f"{GREEN}▶{RESET}" if i == default else " "
-        print(f"  {marker} {BOLD}{i}{RESET}. {opt}")
-    _separator()
-
-    while True:
-        try:
-            raw = input(f"  Enter choice [1–{len(options)}] (default {default}): ").strip()
-            if raw == "":
-                return default
-            choice = int(raw)
-            if 1 <= choice <= len(options):
-                return choice
-            print(f"  Please enter a number between 1 and {len(options)}.")
-        except (ValueError, EOFError):
-            print(f"  Please enter a number between 1 and {len(options)}.")
-
-
-def prompt_multi_choice(title: str, options: list[str]) -> list[int]:
-    """
-    Print a numbered menu for multi-selection.
-    User may enter comma-separated numbers, ranges (e.g. 1-3), or 'all'.
-    Returns a sorted list of 1-based indices.
-    """
-    print()
-    _separator()
-    print(f"{BOLD}{CYAN}{title}{RESET}")
-    _separator()
-    for i, opt in enumerate(options, 1):
-        print(f"   {BOLD}{i}{RESET}. {opt}")
-    _separator()
-    print(f"  {DIM}Enter numbers separated by commas, a range like 1-3, or 'all'.{RESET}")
-
-    while True:
-        try:
-            raw = input("  Your selection: ").strip().lower()
-        except EOFError:
-            raw = "all"
-
-        if raw in ("all", "a", ""):
-            return list(range(1, len(options) + 1))
-
-        selected = set()
-        valid = True
-        for part in raw.replace(" ", "").split(","):
-            if "-" in part:
-                bounds = part.split("-", 1)
-                try:
-                    lo, hi = int(bounds[0]), int(bounds[1])
-                    if 1 <= lo <= hi <= len(options):
-                        selected.update(range(lo, hi + 1))
-                    else:
-                        valid = False; break
-                except ValueError:
-                    valid = False; break
-            else:
-                try:
-                    n = int(part)
-                    if 1 <= n <= len(options):
-                        selected.add(n)
-                    else:
-                        valid = False; break
-                except ValueError:
-                    valid = False; break
-
-        if valid and selected:
-            return sorted(selected)
-
-        print(f"  Invalid input. Please try again (e.g. '1,3', '1-4', 'all').")
-
-
 # ---------------------------------------------------------------------------
-# CLI arguments (minimal — interactive prompts handle the main choices)
+# CLI arguments
 # ---------------------------------------------------------------------------
 
 def parse_args():
@@ -185,7 +121,7 @@ def fetch_timeseries(project_id: str, start_dt: datetime, end_dt: datetime) -> d
     except ImportError:
         print(
             "\nERROR: google-cloud-monitoring is not installed.\n"
-            "       Run:  pip install google-cloud-monitoring\n",
+            "       Run:  pip install -r requirements.txt\n",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -200,15 +136,12 @@ def fetch_timeseries(project_id: str, start_dt: datetime, end_dt: datetime) -> d
         }
     )
 
-    # ── Phase 1: Discovery query (no cross-series reduction) ──────────────
-    # We first query with only per-series alignment to discover which labels
-    # carry the model identifier. The cross-series reducer strips labels that
-    # aren't in group_by_fields, so we need to know the right field name first.
+    # Query with only per-series alignment (no cross-series reduction)
+    # so all labels are preserved — we need them to identify models.
     discovery_agg = monitoring_v3.Aggregation(
         {
             "alignment_period": Duration(seconds=ALIGNMENT_PERIOD_SECONDS),
             "per_series_aligner": monitoring_v3.Aggregation.Aligner.ALIGN_SUM,
-            # No cross_series_reducer — keeps all labels intact
         }
     )
 
@@ -232,48 +165,34 @@ def fetch_timeseries(project_id: str, start_dt: datetime, end_dt: datetime) -> d
         }
     )
 
-    # ── Discover the model label and collect data ────────────────────────
-    # Candidate label names for the model identifier (checked in order)
+    # ── Discover model label and collect data ────────────────────────────
     MODEL_LABEL_CANDIDATES = [
-        "model_user_id",    # actual label name on PublisherModel resources
+        "model_user_id",    # PublisherModel resources
         "model_id", "model_name", "publisher_model", "model",
     ]
 
-    # Collect raw points per model — input & output arrive as separate series
-    # so we accumulate and merge by timestamp afterwards
     raw_model_data: dict[str, list[tuple[datetime, float]]] = {}
-    model_label_field = None  # will be set on first time series
-    debug_printed = False
+    model_label_field = None
+    label_discovered = False
 
     for ts in raw_results:
-        all_resource_labels = dict(ts.resource.labels)
-        all_metric_labels = dict(ts.metric.labels)
+        res_labels = dict(ts.resource.labels)
+        met_labels = dict(ts.metric.labels)
 
-        # On first series only, discover which label holds the model name
-        if not debug_printed:
-            debug_printed = True
-            print(f"  {DIM}DEBUG — Resource type: {ts.resource.type}{RESET}")
-            print(f"  {DIM}DEBUG — Resource labels: {all_resource_labels}{RESET}")
-            print(f"  {DIM}DEBUG — Metric labels: {all_metric_labels}{RESET}")
-
+        if not label_discovered:
+            label_discovered = True
             for candidate in MODEL_LABEL_CANDIDATES:
-                if candidate in all_resource_labels:
+                if candidate in res_labels:
                     model_label_field = ("resource", candidate)
                     break
-                if candidate in all_metric_labels:
+                if candidate in met_labels:
                     model_label_field = ("metric", candidate)
                     break
-
-            if model_label_field:
-                src, key = model_label_field
-                print(f"  {DIM}DEBUG — Using {src}.label.{key} as model identifier{RESET}")
-            else:
-                print(f"  {DIM}DEBUG — No model label found, grouping as 'all_models'{RESET}")
 
         # Extract model name
         if model_label_field:
             src, key = model_label_field
-            labels = all_resource_labels if src == "resource" else all_metric_labels
+            labels = res_labels if src == "resource" else met_labels
             model_id = labels.get(key, "unknown_model")
         else:
             model_id = "all_models"
@@ -306,8 +225,19 @@ def _duration_desc(delta: timedelta) -> str:
 
 
 # ---------------------------------------------------------------------------
-# CSV writing
+# Helpers
 # ---------------------------------------------------------------------------
+
+def _fmt_tokens(n: int) -> str:
+    """Human-readable token count: B / M / K."""
+    if n >= 1_000_000_000:
+        return f"{n / 1_000_000_000:.2f}B tokens"
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M tokens"
+    if n >= 1_000:
+        return f"{n / 1_000:.1f}K tokens"
+    return f"{n:,} tokens"
+
 
 def write_csv(label: str, points: list, out_dir: str) -> str:
     """Write a CSV file and return its path."""
@@ -325,20 +255,13 @@ def write_csv(label: str, points: list, out_dir: str) -> str:
 
 
 def merge_points(all_points: list[list[tuple]]) -> list[tuple]:
-    """
-    Merge multiple per-model point lists by timestamp, summing TPM values.
-    Returns a sorted list of (datetime, tpm).
-    """
+    """Merge multiple point lists by timestamp, summing TPM values."""
     combined: dict[datetime, float] = {}
     for points in all_points:
         for dt, tpm in points:
             combined[dt] = combined.get(dt, 0.0) + tpm
     return sorted(combined.items())
 
-
-# ---------------------------------------------------------------------------
-# URL printing
-# ---------------------------------------------------------------------------
 
 def print_app_urls(generated_files: list[tuple[str, str]], port: int):
     print()
@@ -371,11 +294,11 @@ def print_app_urls(generated_files: list[tuple[str, str]], port: int):
 # Main
 # ---------------------------------------------------------------------------
 
-TIMEFRAME_OPTIONS = [
-    ("Last 24 hours",  timedelta(hours=24)),
-    ("Last week",      timedelta(days=7)),
-    ("Last month",     timedelta(days=30)),
-    ("Last 3 months",  timedelta(days=90)),
+TIMEFRAME_CHOICES = [
+    {"name": "Last 24 hours",  "value": timedelta(hours=24)},
+    {"name": "Last week",      "value": timedelta(days=7)},
+    {"name": "Last month",     "value": timedelta(days=30)},
+    {"name": "Last 3 months",  "value": timedelta(days=90)},
 ]
 
 
@@ -383,22 +306,26 @@ def main():
     args = parse_args()
 
     print(f"\n{BOLD}{CYAN}  Gemini Cost Optimizer — TPM Data Fetcher{RESET}")
-    print(f"  Project: {BOLD}{args.project}{RESET}")
+    print(f"  Project: {BOLD}{args.project}{RESET}\n")
 
-    # ── Step 1: Timeframe ────────────────────────────────────────────────────
-    tf_idx = prompt_choice(
-        "Step 1 of 2 — Select timeframe",
-        [label for label, _ in TIMEFRAME_OPTIONS],
-        default=3,  # "Last month" pre-selected
-    )
-    tf_label, tf_delta = TIMEFRAME_OPTIONS[tf_idx - 1]
+    # ── Step 1: Timeframe ────────────────────────────────────────────────
+    tf_delta = questionary.select(
+        "Select timeframe:",
+        choices=[
+            questionary.Choice(c["name"], value=c["value"])
+            for c in TIMEFRAME_CHOICES
+        ],
+        default=timedelta(days=30),
+        style=PROMPT_STYLE,
+    ).ask()
+
+    if tf_delta is None:
+        sys.exit(0)  # user pressed Ctrl+C
 
     end_dt   = datetime.now(timezone.utc)
     start_dt = end_dt - tf_delta
 
-    print(f"\n  {GREEN}✓{RESET} Timeframe: {BOLD}{tf_label}{RESET}")
-
-    # ── Fetch all model data ─────────────────────────────────────────────────
+    # ── Fetch all model data ─────────────────────────────────────────────
     model_data = fetch_timeseries(args.project, start_dt, end_dt)
 
     if not model_data:
@@ -414,60 +341,52 @@ def main():
     sorted_models = sorted(model_data.keys())
     total_tokens  = {m: int(sum(tpm for _, tpm in model_data[m])) for m in sorted_models}
 
-    def _fmt_tokens(n: int) -> str:
-        """Human-readable token count: B / M / K."""
-        if n >= 1_000_000_000:
-            return f"{n / 1_000_000_000:.2f} B tokens"
-        if n >= 1_000_000:
-            return f"{n / 1_000_000:.1f} M tokens"
-        if n >= 1_000:
-            return f"{n / 1_000:.1f} K tokens"
-        return f"{n:,} tokens"
-
     print(f"\n  Found {BOLD}{len(sorted_models)}{RESET} model(s) with data:\n")
     for m in sorted_models:
         print(f"    • {m}  {DIM}({_fmt_tokens(total_tokens[m])}){RESET}")
+    print()
 
-    # ── Step 2a: Which models? (multi-select, all pre-selected by default) ────
-    model_menu_options = [
-        f"{m}  {DIM}({_fmt_tokens(total_tokens[m])}){RESET}"
+    # ── Step 2: Model selection (checkbox multi-select) ──────────────────
+    model_choices = [
+        questionary.Choice(
+            f"{m}  ({_fmt_tokens(total_tokens[m])})",
+            value=m,
+            checked=True,  # all selected by default
+        )
         for m in sorted_models
     ]
 
-    sel_idx = prompt_multi_choice(
-        "Step 2 of 2 — Select models  (one CSV per model)",
-        model_menu_options,
-    )
-    selected_models = [sorted_models[i - 1] for i in sel_idx]
+    selected_models = questionary.checkbox(
+        "Select models to export (one CSV per model):",
+        choices=model_choices,
+        style=PROMPT_STYLE,
+        instruction="(↑↓ navigate, Space toggle, Enter confirm)",
+    ).ask()
+
+    if selected_models is None:
+        sys.exit(0)
+
+    if not selected_models:
+        print("  No models selected. Exiting.")
+        sys.exit(0)
 
     print(f"\n  {GREEN}✓{RESET} Selected {BOLD}{len(selected_models)}{RESET} model(s)")
 
-    # ── Step 2b: Also generate a combined CSV? ────────────────────────────────
+    # ── Step 3: Combined CSV? ────────────────────────────────────────────
     combine = False
     if len(selected_models) > 1:
-        print()
-        _separator()
-        print(f"{BOLD}{CYAN}Also generate a combined CSV? (all selected models merged){RESET}")
-        _separator()
-        print(f"  {BOLD}1{RESET}. No  — individual CSVs only")
-        print(f"  {BOLD}2{RESET}. Yes — also write tpm_all_models.csv")
-        _separator()
-        while True:
-            try:
-                raw = input("  Enter choice [1–2] (default 1): ").strip()
-                if raw in ("", "1"):
-                    combine = False
-                    break
-                if raw == "2":
-                    combine = True
-                    break
-                print("  Please enter 1 or 2.")
-            except EOFError:
-                break
+        combine = questionary.confirm(
+            "Also generate a combined CSV (all selected models merged)?",
+            default=False,
+            style=PROMPT_STYLE,
+        ).ask()
+
+        if combine is None:
+            sys.exit(0)
 
     print()
 
-    # ── Write CSVs ───────────────────────────────────────────────────────────
+    # ── Write CSVs ───────────────────────────────────────────────────────
     generated_files: list[tuple[str, str]] = []
 
     for m in selected_models:
@@ -482,7 +401,7 @@ def main():
         generated_files.append(("all_models", fp))
         print(f"  {GREEN}✓{RESET}  {BOLD}all_models{RESET}  →  {fp}  ({_fmt_tokens(combined_total)})")
 
-    # ── Print app URLs ────────────────────────────────────────────────────────
+    # ── Print app URLs ───────────────────────────────────────────────────
     if not args.no_server:
         print_app_urls(generated_files, args.port)
 

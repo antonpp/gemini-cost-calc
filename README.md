@@ -28,7 +28,6 @@ The included `utils/fetch_tpm.py` script queries **GCP Cloud Monitoring** for yo
 
 - A GCP project with Vertex AI generative model usage
 - `roles/monitoring.viewer` IAM role on the project (Cloud Shell's default credentials usually have this)
-- `google-cloud-monitoring` Python package
 
 ### Steps
 
@@ -37,8 +36,10 @@ The included `utils/fetch_tpm.py` script queries **GCP Cloud Monitoring** for yo
 git clone https://github.com/antonpp/gemini-cost-calc.git
 cd gemini-cost-calc
 
-# 2. Install the GCP Monitoring client library
-pip install google-cloud-monitoring
+# 2. Create a virtual environment and install dependencies
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
 # 3. Run the fetch script
 python3 utils/fetch_tpm.py --project YOUR_PROJECT_ID
@@ -49,36 +50,40 @@ python3 -m http.server 8080
 
 ### Interactive prompts
 
-The script guides you through two choices before fetching data:
+The script uses interactive arrow-key menus (via [questionary](https://github.com/tmbo/questionary)):
 
-**Step 1 — Timeframe**
+**Step 1 — Timeframe** (arrow keys to navigate, Enter to confirm)
 ```
-  1. Last 24 hours
-  2. Last week
-▶ 3. Last month       ← default
-  4. Last 3 months
+? Select timeframe:
+  Last 24 hours
+  Last week
+❯ Last month
+  Last 3 months
 ```
 
-**Step 2 — Model selection** (multi-select, all pre-selected by default)
+**Step 2 — Model selection** (Space to toggle, Enter to confirm, all checked by default)
 ```
-   1. gemini-1.5-flash-002  (12.34 B tokens)
-   2. gemini-1.5-pro-002    (847.2 M tokens)
-   3. gemini-2.0-flash      (91.5 K tokens)
+? Select models to export (one CSV per model):
+ ◉ gemini-2.5-flash-lite  (1.2M tokens)
+ ◉ gemini-3-flash-preview  (847.2M tokens)
+ ◯ gemini-3.1-pro-preview  (91.5K tokens)
+```
 
-  Enter numbers separated by commas, a range like 1-3, or 'all'.
+**Step 3 — Combined CSV** (only shown if 2+ models selected)
 ```
-You can then optionally generate a single **combined CSV** (all selected models merged) in addition to the per-model files.
+? Also generate a combined CSV (all selected models merged)? (y/N)
+```
 
 ### Click-to-load URLs
 
 After writing the CSV files the script prints a URL for each file:
 
 ```
-  [gemini-1.5-flash-002]
-  http://localhost:8080/?file=tpm_gemini-1-5-flash-002.csv
+  [gemini-3-flash-preview]
+  http://localhost:8080/?file=tpm_gemini-3-flash-preview.csv
 
-  [gemini-1.5-pro-002]
-  http://localhost:8080/?file=tpm_gemini-1-5-pro-002.csv
+  [gemini-3.1-pro-preview]
+  http://localhost:8080/?file=tpm_gemini-3_1-pro-preview.csv
 ```
 
 Click a link in the Cloud Shell Web Preview to load that model's data directly into the app — no drag-and-drop needed.

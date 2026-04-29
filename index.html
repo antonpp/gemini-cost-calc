@@ -147,13 +147,14 @@
 git clone https://github.com/antonpp/gemini-cost-calc
 cd gemini-cost-calc
 
-# 2. Install dep
-pip install google-cloud-monitoring
+# 2. Create venv & install deps
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
-# 3. Fetch TPM data (generates one CSV per model)
+# 3. Fetch TPM data (interactive prompts)
 python3 utils/fetch_tpm.py \
-  --project YOUR_PROJECT_ID \
-  --days 30
+  --project YOUR_PROJECT_ID
 
 # 4. Serve the app
 python3 -m http.server 8080</code></pre>
