@@ -200,13 +200,15 @@ def fetch_timeseries(project_id: str, start_dt: datetime, end_dt: datetime) -> d
         }
     )
 
-    aggregation = monitoring_v3.Aggregation(
+    # ── Phase 1: Discovery query (no cross-series reduction) ──────────────
+    # We first query with only per-series alignment to discover which labels
+    # carry the model identifier. The cross-series reducer strips labels that
+    # aren't in group_by_fields, so we need to know the right field name first.
+    discovery_agg = monitoring_v3.Aggregation(
         {
             "alignment_period": Duration(seconds=ALIGNMENT_PERIOD_SECONDS),
-            "per_series_aligner":   monitoring_v3.Aggregation.Aligner.ALIGN_SUM,
-            "cross_series_reducer": monitoring_v3.Aggregation.Reducer.REDUCE_SUM,
-            # One time-series per model
-            "group_by_fields": ["resource.label.model_id"],
+            "per_series_aligner": monitoring_v3.Aggregation.Aligner.ALIGN_SUM,
+            # No cross_series_reducer — keeps all labels intact
         }
     )
 
@@ -220,41 +222,58 @@ def fetch_timeseries(project_id: str, start_dt: datetime, end_dt: datetime) -> d
         f"  Granularity : 1-minute buckets\n"
     )
 
-    results = client.list_time_series(
+    raw_results = client.list_time_series(
         request={
             "name":        project_name,
             "filter":      filter_str,
             "interval":    interval,
             "view":        monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL,
-            "aggregation": aggregation,
+            "aggregation": discovery_agg,
         }
     )
 
+    # ── Discover the model label and collect data ────────────────────────
+    # Candidate label names for the model identifier
+    MODEL_LABEL_CANDIDATES = ["model_id", "model_name", "publisher_model", "model"]
+
     model_data: dict[str, list[tuple[datetime, float]]] = {}
+    model_label_field = None  # will be set on first time series
 
-    debug_printed = False
-    for ts in results:
-        # Debug: print all available labels on the first time series
-        if not debug_printed:
+    for ts in raw_results:
+        all_resource_labels = dict(ts.resource.labels)
+        all_metric_labels = dict(ts.metric.labels)
+
+        # On first series, discover which label holds the model name
+        if model_label_field is None:
             print(f"  {DIM}DEBUG — Resource type: {ts.resource.type}{RESET}")
-            print(f"  {DIM}DEBUG — Resource labels: {dict(ts.resource.labels)}{RESET}")
-            print(f"  {DIM}DEBUG — Metric type: {ts.metric.type}{RESET}")
-            print(f"  {DIM}DEBUG — Metric labels: {dict(ts.metric.labels)}{RESET}")
-            debug_printed = True
+            print(f"  {DIM}DEBUG — Resource labels: {all_resource_labels}{RESET}")
+            print(f"  {DIM}DEBUG — Metric labels: {all_metric_labels}{RESET}")
 
-        # Try multiple label locations for the model identifier
-        model_id = (
-            ts.resource.labels.get("model_id")
-            or ts.metric.labels.get("model_id")
-            or ts.resource.labels.get("model_name")
-            or ts.metric.labels.get("model_name")
-            or ts.resource.labels.get("publisher_model")
-            or "unknown_model"
-        )
+            # Search in both resource and metric labels
+            for candidate in MODEL_LABEL_CANDIDATES:
+                if candidate in all_resource_labels:
+                    model_label_field = ("resource", candidate)
+                    break
+                if candidate in all_metric_labels:
+                    model_label_field = ("metric", candidate)
+                    break
+
+            if model_label_field:
+                src, key = model_label_field
+                print(f"  {DIM}DEBUG — Using {src}.label.{key} as model identifier{RESET}")
+            else:
+                print(f"  {DIM}DEBUG — No model label found, all data will be grouped as 'all_models'{RESET}")
+
+        # Extract model name from the discovered label
+        if model_label_field:
+            src, key = model_label_field
+            labels = all_resource_labels if src == "resource" else all_metric_labels
+            model_id = labels.get(key, "unknown_model")
+        else:
+            model_id = "all_models"
+
         for point in ts.points:
-            # point.interval.end_time is a DatetimeWithNanoseconds (datetime subclass)
             dt = point.interval.end_time.replace(tzinfo=timezone.utc)
-            # value may be int64 or double depending on the aggregation
             value = float(point.value.int64_value or point.value.double_value or 0)
             model_data.setdefault(model_id, []).append((dt, value))
 
