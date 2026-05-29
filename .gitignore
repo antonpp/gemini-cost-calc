@@ -209,3 +209,7 @@ __marimo__/
 # private samples
 my_sample_csv/
 .DS_Store
+
+# Temporary agent/scratch directories
+.agents/
+scratch/
