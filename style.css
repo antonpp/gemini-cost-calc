@@ -477,6 +477,7 @@ tr.selected-row {
     }
 }
 
+
 /* Scrollable Multi-select Checkbox Filter container */
 .csv-checkbox-container {
     background: rgba(15, 23, 42, 0.5);
@@ -547,3 +548,29 @@ tr.selected-row {
 }
 
 
+/* File-load banner status pill */
+.file-load-status {
+    font-weight: 600;
+    font-size: 0.82rem;
+    padding: 0.25rem 0.7rem;
+    border-radius: 20px;
+    white-space: nowrap;
+}
+.file-load-status.loading {
+    background: rgba(34, 211, 238, 0.12);
+    color: var(--primary-cyan);
+    animation: pulse-opacity 1.2s ease-in-out infinite;
+}
+.file-load-status.success {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+.file-load-status.error {
+    background: rgba(248, 113, 113, 0.15);
+    color: var(--accent-coral);
+}
+
+@keyframes pulse-opacity {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}

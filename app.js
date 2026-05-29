@@ -106,7 +106,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (window.location.search.includes('test=true')) {
+    const urlParams = new URLSearchParams(window.location.search);
+
+    // ?test=true — load a bundled sample CSV
+    if (urlParams.get('test') === 'true' || window.location.search.includes('test=true')) {
         fetch('my_sample_csv/sample_00.csv')
             .then(res => res.text())
             .then(csvText => {
@@ -125,6 +128,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             });
+    }
+
+    // ?file=<relative-path> — load a CSV file served by the local HTTP server
+    // (used by fetch_tpm.py to generate clickable Cloud Shell links)
+    const fileParam = urlParams.get('file');
+    if (fileParam) {
+        loadFileFromUrl(fileParam);
     }
 });
 
@@ -301,82 +311,107 @@ function handleFileUpdate(file) {
         dynamicTyping: true,
         skipEmptyLines: true,
         complete: function(results) {
-            if (!results.data || results.data.length === 0) {
-                alert("The CSV file is empty.");
-                return;
-            }
-
-            const firstRow = results.data[0];
-            const has429Cols = ('large_model_name' in firstRow) && ('date_time' in firstRow);
-            const hasStdCols = ('time' in firstRow) && ('tpm' in firstRow);
-
-            if (has429Cols) {
-                csvFormat = '429-dash-export';
-                rawCsvRows = results.data.filter(row => row.large_model_name && row.date_time);
-                
-                // Show 429 UI elements
-                document.getElementById('csv-model-filter-container').style.display = 'block';
-                document.getElementById('breakdown-container').style.display = 'block';
-                document.getElementById('metric-card-throttled').style.display = 'block';
-
-                // Extract unique models
-                const modelCounts = {};
-                rawCsvRows.forEach(row => {
-                    modelCounts[row.large_model_name] = (modelCounts[row.large_model_name] || 0) + 1;
-                });
-                
-                // Sort model names by row count
-                const uniqueModels = Object.keys(modelCounts).sort((a, b) => modelCounts[b] - modelCounts[a]);
-
-                // Populate filter checkboxes
-                const checkboxContainer = document.getElementById('csv-model-checkboxes');
-                checkboxContainer.innerHTML = '';
-                uniqueModels.forEach((model, idx) => {
-                    const rowDiv = document.createElement('div');
-                    rowDiv.className = 'csv-checkbox-row';
-                    
-                    // First model is checked by default
-                    const isChecked = idx === 0 ? 'checked' : '';
-                    
-                    rowDiv.innerHTML = `
-                        <input type="checkbox" id="csv-model-${model}" value="${model}" ${isChecked}>
-                        <label for="csv-model-${model}">
-                            <span>${model}</span>
-                            <span class="csv-checkbox-count">${modelCounts[model].toLocaleString()} rows</span>
-                        </label>
-                    `;
-                    checkboxContainer.appendChild(rowDiv);
-                });
-
-                // Auto-select first model and run aggregation
-                selectedCsvModels = [uniqueModels[0]];
-                aggregateCsvModelData();
-
-            } else if (hasStdCols) {
-                csvFormat = 'standard';
-                rawCsvRows = [];
-                selectedCsvModel = '';
-                
-                // Hide 429 UI elements
-                document.getElementById('csv-model-filter-container').style.display = 'none';
-                document.getElementById('breakdown-container').style.display = 'none';
-                document.getElementById('metric-card-throttled').style.display = 'none';
-
-                parsedData = results.data
-                    .filter(row => row.time && !isNaN(new Date(row.time).getTime()))
-                    .map(row => ({
-                        time: new Date(row.time),
-                        tpm: parseFloat(row.tpm) || 0
-                    })).sort((a, b) => a.time - b.time);
-
-                selectedGsuOverride = null;
-                detectResolution();
-                processCalculation();
-            } else {
-                alert("Invalid CSV format. Ensure either ('time' and 'tpm') or ('large_model_name' and 'date_time') headers are present.");
-            }
+            processParsedCsv(results);
         }
     });
+}
+
+function processParsedCsv(results, bannerStatusElement) {
+    if (!results.data || results.data.length === 0) {
+        alert("The CSV file is empty.");
+        if (bannerStatusElement) {
+            bannerStatusElement.textContent = "The CSV file is empty.";
+            bannerStatusElement.className = 'file-load-status error';
+        }
+        return;
+    }
+
+    const firstRow = results.data[0];
+    const has429Cols = ('large_model_name' in firstRow) && ('date_time' in firstRow);
+    const hasStdCols = ('time' in firstRow) && ('tpm' in firstRow);
+
+    if (has429Cols) {
+        csvFormat = '429-dash-export';
+        rawCsvRows = results.data.filter(row => row.large_model_name && row.date_time);
+        
+        // Show 429 UI elements
+        document.getElementById('csv-model-filter-container').style.display = 'block';
+        document.getElementById('breakdown-container').style.display = 'block';
+        document.getElementById('metric-card-throttled').style.display = 'block';
+
+        // Extract unique models
+        const modelCounts = {};
+        rawCsvRows.forEach(row => {
+            modelCounts[row.large_model_name] = (modelCounts[row.large_model_name] || 0) + 1;
+        });
+        
+        // Sort model names by row count
+        const uniqueModels = Object.keys(modelCounts).sort((a, b) => modelCounts[b] - modelCounts[a]);
+
+        // Populate filter checkboxes
+        const checkboxContainer = document.getElementById('csv-model-checkboxes');
+        if (checkboxContainer) {
+            checkboxContainer.innerHTML = '';
+            uniqueModels.forEach((model, idx) => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'csv-checkbox-row';
+                
+                // First model is checked by default
+                const isChecked = idx === 0 ? 'checked' : '';
+                
+                rowDiv.innerHTML = `
+                    <input type="checkbox" id="csv-model-${model}" value="${model}" ${isChecked}>
+                    <label for="csv-model-${model}">
+                        <span>${model}</span>
+                        <span class="csv-checkbox-count">${modelCounts[model].toLocaleString()} rows</span>
+                    </label>
+                `;
+                checkboxContainer.appendChild(rowDiv);
+            });
+        }
+
+        // Auto-select first model and run aggregation
+        selectedCsvModels = [uniqueModels[0]];
+        aggregateCsvModelData();
+
+        if (bannerStatusElement) {
+            bannerStatusElement.textContent = `✓ Loaded ${rawCsvRows.length.toLocaleString()} rows`;
+            bannerStatusElement.className = 'file-load-status success';
+        }
+
+    } else if (hasStdCols) {
+        csvFormat = 'standard';
+        rawCsvRows = [];
+        selectedCsvModel = '';
+        
+        // Hide 429 UI elements
+        document.getElementById('csv-model-filter-container').style.display = 'none';
+        document.getElementById('breakdown-container').style.display = 'none';
+        document.getElementById('metric-card-throttled').style.display = 'none';
+
+        parsedData = results.data
+            .filter(row => row.time && !isNaN(new Date(row.time).getTime()))
+            .map(row => ({
+                time: new Date(row.time),
+                tpm: parseFloat(row.tpm) || 0
+            })).sort((a, b) => a.time - b.time);
+
+        selectedGsuOverride = null;
+        detectResolution();
+        processCalculation();
+
+        if (bannerStatusElement) {
+            bannerStatusElement.textContent = `✓ Loaded ${parsedData.length.toLocaleString()} rows`;
+            bannerStatusElement.className = 'file-load-status success';
+        }
+    } else {
+        const errorMsg = "Invalid CSV format. Ensure either ('time' and 'tpm') or ('large_model_name' and 'date_time') headers are present.";
+        alert(errorMsg);
+        if (bannerStatusElement) {
+            bannerStatusElement.textContent = "Invalid CSV format";
+            bannerStatusElement.className = 'file-load-status error';
+        }
+    }
 }
 
 function aggregateCsvModelData() {
@@ -601,6 +636,42 @@ function populateBreakdownTables(projectTokens, locationTokens, totalTokens) {
             locationsBody.appendChild(tr);
         });
     }
+}
+
+/**
+ * Load a CSV from the local HTTP server by relative path.
+ * Called when the app is opened with ?file=<path> — the URL generated
+ * by utils/fetch_tpm.py so users can click-to-load from Cloud Shell.
+ */
+function loadFileFromUrl(filePath) {
+    const banner = document.getElementById('file-load-banner');
+    const bannerName = document.getElementById('file-load-name');
+    const bannerStatus = document.getElementById('file-load-status');
+
+    const fileName = filePath.split('/').pop();
+    if (bannerName) bannerName.textContent = fileName;
+    if (banner) banner.style.display = 'flex';
+    if (bannerStatus) { bannerStatus.textContent = 'Loading…'; bannerStatus.className = 'file-load-status loading'; }
+
+    fetch(filePath)
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            return res.text();
+        })
+        .then(csvText => {
+            Papa.parse(csvText, {
+                header: true,
+                dynamicTyping: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    processParsedCsv(results, bannerStatus);
+                }
+            });
+        })
+        .catch(err => {
+            console.error('loadFileFromUrl failed:', err);
+            if (bannerStatus) { bannerStatus.textContent = `Failed: ${err.message}`; bannerStatus.className = 'file-load-status error'; }
+        });
 }
 
 function detectResolution() {
