@@ -37,9 +37,21 @@ This document defines the preset configurations for Gemini models on Vertex AI t
 
 ---
 
+### 4. Gemini 3.5 Flash
+*   `standard paygo rate: input`: $1.50
+*   `standard paygo rate: output`: $9.00
+*   `max TPM Standard PayGo capacity`: 10000000
+*   `tpm per gsu`: 120900
+*   `gsu cost / month`: 2000
+*   `priority multiplier`: 1.8
+*   `max TPM Priority PayGocapacity`: 10000000
+
+---
+
 ## Derivation Notes
-*   **Pricing & Multiplier**: Sourced from Vertex AI public rates (Standard & Priority) for Gemini 3 / 3.1 models.
+*   **Pricing & Multiplier**: Sourced from Vertex AI public rates (Standard & Priority) for Gemini 3 / 3.1 / 3.5 models.
 *   **Scale Units (GSU)**: Calculated from "Per-second throughput per GSU" rates multiplied by 60.
 *   **Capacity (Max TPM)**: Sourced from Vertex AI Standard PayGo Baseline Throughput for **Tier 3** spend level ($2000+ rolling 30-day spend).
 *   **Simplification**: Priority capacity capped at Standard levels; ramping ignored.
-*   **Updated**: 2026-03-19
+*   **Updated**: 2026-05-29
+

@@ -446,3 +446,104 @@ tr.selected-row {
     margin: 0 auto;
     width: 100%;
 }
+
+/* Collapsible Breakdown styles */
+.collapsible-header {
+    user-select: none;
+    transition: color 0.2s ease;
+}
+
+.collapsible-header:hover {
+    color: #FFF;
+}
+
+.collapsible-header:hover span {
+    color: var(--primary-cyan);
+}
+
+.breakdown-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.breakdown-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(34, 211, 238, 0.05);
+}
+
+@media (max-width: 768px) {
+    #breakdown-content .breakdown-grid {
+        grid-template-columns: 1fr !important;
+        gap: 1rem !important;
+    }
+}
+
+/* Scrollable Multi-select Checkbox Filter container */
+.csv-checkbox-container {
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.8rem;
+    max-height: 160px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Custom Scrollbar for Checkbox Container */
+.csv-checkbox-container::-webkit-scrollbar {
+    width: 6px;
+}
+.csv-checkbox-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+.csv-checkbox-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+.csv-checkbox-container::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-cyan);
+}
+
+.csv-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.85rem;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.csv-checkbox-row:hover {
+    opacity: 0.9;
+    color: var(--primary-cyan);
+}
+
+.csv-checkbox-row input[type="checkbox"] {
+    width: auto;
+    height: auto;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--primary-cyan);
+}
+
+.csv-checkbox-row label {
+    margin-bottom: 0 !important;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    align-items: center;
+}
+
+.csv-checkbox-count {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+
+

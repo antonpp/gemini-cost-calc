@@ -50,6 +50,7 @@ The application SHOULD look extremely premium, adopting a "Glassmorphic Dashboar
 
 #### **Panel A: Configuration & Upload (Left or Top)**
 0.  **Model Preset**: Dropdown at the top to select specific Gemini models and auto-populate all rate/capacity parameters dynamically without auto-recalculating.
+0.1. **CSV Model Filter**: A conditional scrollable checkbox checklist that appears only when the `429-dash-export` format is uploaded, allowing filtering of rows by selecting one or more models to aggregate.
 1.  **Drop Zone**: Large, dashed border box with icon for direct drag-and-drop integration. Alternatively, a "Select File" button.
 2.  **Parameters Form**:
     *   **Global Layout**: `TPM per GSU`, `GSU Cost / Month`, rates pointers.
@@ -60,16 +61,20 @@ The application SHOULD look extremely premium, adopting a "Glassmorphic Dashboar
         *   `Max Prio TPM` and `Max Std TPM` continuous bounds sliders headers incorporating absolute `Unlimited` checkboxes overlays natively securely.
 
 #### **Panel B: Interactive Chart (Right or Center)**
--   Line chart plotting `tpm` on the Y-axis vs `time` on the X-axis.
--   Horizontal dashed line showing the **Selected/Optimal GSU Threshold** capacity.
--   Responsive scaling with time-axis formatting (Hour/Date support).
+- Line chart plotting `tpm` on the Y-axis vs `time` on the X-axis.
+- Horizontal dashed line showing the **Selected/Optimal GSU Threshold** capacity.
+- Responsive scaling with time-axis formatting (Hour/Date support).
+- **Secondary Y-Axis Overlays**: For `429-dash-export` files, display actual historical throttled request counts (429s/throttles) aligned with the timeline, rendered as semi-transparent vertical bar spikes only when throttling occurs (zero values are hidden to declutter the chart).
 
 #### **Panel C: Cost Breakdown Summary & Table (Bottom)**
 1.  **Metric Cards**:
     *   Total Tokens calculated.
+    *   Peak TPM.
     *   Optimal GSU count (suggested).
     *   Estimated total monthly cost (Optimal vs pure PayGo).
-2.  **Comparison Grid/Table**:
+    *   **Throttled Rate**: The percentage of requests that were throttled (only for `429-dash-export`).
+2.  **Breakdowns Section (Collapsible)**: Collapsible cards showing top regions and projects by token volume (only for `429-dash-export`).
+3.  **Comparison Grid/Table**:
     *   Columns: `GSU Units`, `TPM Threshold`, `PT Capacity Cost`, `PT Utilization %`, `Spillover (Tokens)`, `PayGo Cost`, `Total Expected Cost`.
     *   Highlight the row corresponding to the minimum `Total Expected Cost`.
 
@@ -80,8 +85,20 @@ The application SHOULD look extremely premium, adopting a "Glassmorphic Dashboar
 ### A. Data Consumption
 1.  Trigger standard listener on `dragover`/`drop` or `.csv` upload inputs.
 2.  Pass data buffer into `Papa.parse`.
-3.  **Validation**: Verify headers `time` and `tpm` are present.
-4.  **Parsing**: Convert strings: `tpm` to Float, `time` to Datetime (JS objects).
+3.  **Format Auto-Detection**:
+    *   **Standard**: If headers contain `time` and `tpm`.
+    *   **429-dash-export**: If headers contain `large_model_name` and `date_time`.
+4.  **Data Processing & Aggregation**:
+    *   *Standard*: Parse `tpm` directly and map `time` to Date objects.
+    *   *429-dash-export*:
+        *   Extract unique model names from `large_model_name` to populate the CSV Model Filter checkbox list.
+        *   Filter rows by all selected CSV models.
+        *   Sum `input_tokens` and `output_tokens` per `date_time` (converted from microseconds to Date objects) across all selected models.
+        *   Sum all request throttling counts.
+        *   Compute the median interval $M$ between consecutive sorted timestamps.
+        *   Convert to TPM rate: $TPM = (input\_tokens + output\_tokens) / M$.
+        *   Auto-tune the Input/Output Split slider based on the total actual input vs output tokens.
+        *   Auto-map the selected CSV model to the closest predefined pricing preset.
 5.  **Resolution Detection**: Analyze intervals between consecutive timestamps to determine bucket duration $M$ (minutes). Support dynamic resolutions (e.g., 1 min, 5 min, 10 min). Minimum supported duration is 1 minute.
 
 

@@ -26,6 +26,14 @@
                 </select>
             </div>
 
+            <!-- CSV Model Filter (Only visible for 429-dash-export) -->
+            <div class="form-group" id="csv-model-filter-container" style="display: none; margin-bottom: 1.5rem;">
+                <label style="color: var(--primary-cyan); font-weight: 600; margin-bottom: 0.5rem; display: block;"><i class="fa-solid fa-filter"></i> Filter by CSV Models</label>
+                <div id="csv-model-checkboxes" class="csv-checkbox-container">
+                    <!-- Dynamic Checkboxes -->
+                </div>
+            </div>
+
             <div id="drop-zone" class="drop-zone">
                 <i class="fa-solid fa-cloud-arrow-up"></i>
                 <p>Drag & Drop CSV File here</p>
@@ -73,7 +81,7 @@
             </div>
             
             <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                <input type="checkbox" id="enable-priority" checked style="width: auto; cursor: pointer;">
+                <input type="checkbox" id="enable-priority" style="width: auto; cursor: pointer;">
                 <label for="enable-priority" style="margin-bottom:0; cursor: pointer;">Enable Priority Tier</label>
             </div>
 
@@ -162,6 +170,10 @@
                         <h4>Optimal GSU</h4>
                         <p id="metric-optimal_gsu">-</p>
                     </div>
+                    <div class="metric-card" id="metric-card-throttled" style="display: none;">
+                        <h4>Throttled Rate</h4>
+                        <p id="metric-throttled_rate">-</p>
+                    </div>
                     <div class="metric-card">
                         <h4>Est. Total Cost</h4>
                         <p id="metric-total_cost">-</p>
@@ -169,7 +181,7 @@
                 </div>
 
                 <div class="form-title">GSU Comparison Table</div>
-                <div class="table-container">
+                <div class="table-container" style="margin-bottom: 2rem;">
                     <table id="simulation-table">
                         <thead>
                             <tr>
@@ -186,6 +198,52 @@
                             <!-- Dynamic Rows -->
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Collapsible Detailed Workload Breakdown (Only visible for 429-dash-export) -->
+                <div id="breakdown-container" style="display: none; margin-top: 2rem;">
+                    <div class="form-title collapsible-header" id="breakdown-toggle" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+                        <span><i class="fa-solid fa-square-poll-horizontal"></i> Detailed Workload Breakdown</span>
+                        <i class="fa-solid fa-chevron-down" id="breakdown-chevron" style="transition: transform 0.3s ease;"></i>
+                    </div>
+                    <div id="breakdown-content" style="display: none; margin-top: 1rem; padding-bottom: 1rem;">
+                        <div class="breakdown-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                            <div class="breakdown-card glass-panel" style="background: rgba(15, 23, 42, 0.2); padding: 1.2rem; border-radius: 12px; border: 1px solid var(--border-color);">
+                                <h4 style="margin-bottom: 1rem; color: var(--primary-cyan); display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; text-transform: uppercase;"><i class="fa-solid fa-circle-nodes"></i> Top Projects / Clients</h4>
+                                <div class="table-container">
+                                    <table id="projects-table" style="font-size: 0.85rem; margin-top: 0;">
+                                        <thead>
+                                            <tr>
+                                                <th>Project Number</th>
+                                                <th>Total Tokens</th>
+                                                <th>Volume %</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Dynamic Rows -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="breakdown-card glass-panel" style="background: rgba(15, 23, 42, 0.2); padding: 1.2rem; border-radius: 12px; border: 1px solid var(--border-color);">
+                                <h4 style="margin-bottom: 1rem; color: var(--primary-cyan); display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; text-transform: uppercase;"><i class="fa-solid fa-earth-americas"></i> Top Regions / Locations</h4>
+                                <div class="table-container">
+                                    <table id="locations-table" style="font-size: 0.85rem; margin-top: 0;">
+                                        <thead>
+                                            <tr>
+                                                <th>Location</th>
+                                                <th>Total Tokens</th>
+                                                <th>Volume %</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Dynamic Rows -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

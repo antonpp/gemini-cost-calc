@@ -26,6 +26,15 @@ const MODEL_PRESETS = {
         paygoMult: 1.8,
         maxPrio: 10000000,
         maxStd: 10000000
+    },
+    "Gemini 3.5 Flash": {
+        tpmPerGsu: 120900,
+        gsuCost: 2000,
+        inputRate: 1.50,
+        outputRate: 9.00,
+        paygoMult: 1.8,
+        maxPrio: 10000000,
+        maxStd: 10000000
     }
 };
 
@@ -34,6 +43,10 @@ let parsedData = [];
 let detectedM = 5; // Default bucket multiplier
 let chartInstance = null;
 let selectedGsuOverride = null;
+let csvFormat = 'standard';
+let rawCsvRows = [];
+let selectedCsvModels = [];
+
 
 // DOM Elements
 const dropZone = document.getElementById('drop-zone');
@@ -65,6 +78,33 @@ fileInput.addEventListener('change', handleFileSelect);
 // Auto-run test if requested via URL param (Local server required)
 document.addEventListener('DOMContentLoaded', () => {
     initPresets();
+
+    // Add event listener for CSV model checkboxes (using delegation)
+    const csvModelCheckboxes = document.getElementById('csv-model-checkboxes');
+    if (csvModelCheckboxes) {
+        csvModelCheckboxes.addEventListener('change', (e) => {
+            if (e.target && e.target.type === 'checkbox') {
+                const checked = Array.from(csvModelCheckboxes.querySelectorAll('input[type="checkbox"]:checked'))
+                                    .map(cb => cb.value);
+                selectedCsvModels = checked;
+                aggregateCsvModelData();
+            }
+        });
+    }
+
+    // Collapsible Breakdown toggle logic
+    const breakdownToggle = document.getElementById('breakdown-toggle');
+    const breakdownContent = document.getElementById('breakdown-content');
+    const breakdownChevron = document.getElementById('breakdown-chevron');
+    if (breakdownToggle && breakdownContent) {
+        breakdownToggle.addEventListener('click', () => {
+            const isCollapsed = breakdownContent.style.display === 'none';
+            breakdownContent.style.display = isCollapsed ? 'block' : 'none';
+            if (breakdownChevron) {
+                breakdownChevron.style.transform = isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+            }
+        });
+    }
 
     if (window.location.search.includes('test=true')) {
         fetch('my_sample_csv/sample_00.csv')
@@ -261,7 +301,67 @@ function handleFileUpdate(file) {
         dynamicTyping: true,
         skipEmptyLines: true,
         complete: function(results) {
-            if (results.data && results.data.length > 0 && 'tpm' in results.data[0]) {
+            if (!results.data || results.data.length === 0) {
+                alert("The CSV file is empty.");
+                return;
+            }
+
+            const firstRow = results.data[0];
+            const has429Cols = ('large_model_name' in firstRow) && ('date_time' in firstRow);
+            const hasStdCols = ('time' in firstRow) && ('tpm' in firstRow);
+
+            if (has429Cols) {
+                csvFormat = '429-dash-export';
+                rawCsvRows = results.data.filter(row => row.large_model_name && row.date_time);
+                
+                // Show 429 UI elements
+                document.getElementById('csv-model-filter-container').style.display = 'block';
+                document.getElementById('breakdown-container').style.display = 'block';
+                document.getElementById('metric-card-throttled').style.display = 'block';
+
+                // Extract unique models
+                const modelCounts = {};
+                rawCsvRows.forEach(row => {
+                    modelCounts[row.large_model_name] = (modelCounts[row.large_model_name] || 0) + 1;
+                });
+                
+                // Sort model names by row count
+                const uniqueModels = Object.keys(modelCounts).sort((a, b) => modelCounts[b] - modelCounts[a]);
+
+                // Populate filter checkboxes
+                const checkboxContainer = document.getElementById('csv-model-checkboxes');
+                checkboxContainer.innerHTML = '';
+                uniqueModels.forEach((model, idx) => {
+                    const rowDiv = document.createElement('div');
+                    rowDiv.className = 'csv-checkbox-row';
+                    
+                    // First model is checked by default
+                    const isChecked = idx === 0 ? 'checked' : '';
+                    
+                    rowDiv.innerHTML = `
+                        <input type="checkbox" id="csv-model-${model}" value="${model}" ${isChecked}>
+                        <label for="csv-model-${model}">
+                            <span>${model}</span>
+                            <span class="csv-checkbox-count">${modelCounts[model].toLocaleString()} rows</span>
+                        </label>
+                    `;
+                    checkboxContainer.appendChild(rowDiv);
+                });
+
+                // Auto-select first model and run aggregation
+                selectedCsvModels = [uniqueModels[0]];
+                aggregateCsvModelData();
+
+            } else if (hasStdCols) {
+                csvFormat = 'standard';
+                rawCsvRows = [];
+                selectedCsvModel = '';
+                
+                // Hide 429 UI elements
+                document.getElementById('csv-model-filter-container').style.display = 'none';
+                document.getElementById('breakdown-container').style.display = 'none';
+                document.getElementById('metric-card-throttled').style.display = 'none';
+
                 parsedData = results.data
                     .filter(row => row.time && !isNaN(new Date(row.time).getTime()))
                     .map(row => ({
@@ -273,10 +373,234 @@ function handleFileUpdate(file) {
                 detectResolution();
                 processCalculation();
             } else {
-                alert("Invalid CSV format. Ensure 'time' and 'tpm' headers are present.");
+                alert("Invalid CSV format. Ensure either ('time' and 'tpm') or ('large_model_name' and 'date_time') headers are present.");
             }
         }
     });
+}
+
+function aggregateCsvModelData() {
+    if (!rawCsvRows || rawCsvRows.length === 0 || !selectedCsvModels || selectedCsvModels.length === 0) {
+        // Clear metrics and parsedData if nothing is selected
+        parsedData = [];
+        document.getElementById('metric-total_tokens').innerText = "-";
+        document.getElementById('metric-peak_tpm').innerText = "-";
+        document.getElementById('metric-optimal_gsu').innerText = "-";
+        document.getElementById('metric-total_cost').innerText = "-";
+        document.getElementById('metric-throttled_rate').innerText = "-";
+        document.querySelector('#simulation-table tbody').innerHTML = '';
+        if (chartInstance) chartInstance.destroy();
+        return;
+    }
+
+    const byTime = {};
+    let totalInput = 0;
+    let totalOutput = 0;
+    let totalThrottled = 0;
+    let totalReq = 0;
+
+    const projectTokens = {};
+    const locationTokens = {};
+    
+    // Track token volumes per model to auto-map the heaviest model selected
+    const modelVolumes = {};
+    selectedCsvModels.forEach(m => modelVolumes[m] = 0);
+
+    for (let i = 0; i < rawCsvRows.length; i++) {
+        const row = rawCsvRows[i];
+        if (!selectedCsvModels.includes(row.large_model_name)) continue;
+
+        const t = row.date_time;
+        if (!t) continue;
+
+        if (!byTime[t]) {
+            byTime[t] = {
+                input: 0,
+                output: 0,
+                debug429: 0,
+                ptTh: 0,
+                paygoTh: 0,
+                superTh: 0,
+                totalRequests: 0,
+                successRequests: 0
+            };
+        }
+
+        const inTok = parseFloat(row.input_tokens) || 0;
+        const outTok = parseFloat(row.output_tokens) || 0;
+        const d429 = parseFloat(row.debug_429_cnt) || 0;
+        const ptT = parseFloat(row.pt_servo_throttled_requests_cnt) || 0;
+        const pgT = parseFloat(row.paygo_servo_throttled_requests_cnt) || 0;
+        const spT = parseFloat(row.super_quota_throttled_requests_cnt) || 0;
+        const succ = parseFloat(row.success_requests_cnt) || 0;
+        const tot = parseFloat(row.total_requests) || 0;
+
+        byTime[t].input += inTok;
+        byTime[t].output += outTok;
+        byTime[t].debug429 += d429;
+        byTime[t].ptTh += ptT;
+        byTime[t].paygoTh += pgT;
+        byTime[t].superTh += spT;
+        byTime[t].totalRequests += tot;
+        byTime[t].successRequests += succ;
+
+        totalInput += inTok;
+        totalOutput += outTok;
+        totalThrottled += d429;
+        totalReq += tot;
+        
+        modelVolumes[row.large_model_name] += inTok + outTok;
+
+        const proj = row.project_number ? String(row.project_number) : "Unknown Project";
+        const loc = row.location ? String(row.location) : "Unknown Location";
+        const rowTokens = inTok + outTok;
+
+        projectTokens[proj] = (projectTokens[proj] || 0) + rowTokens;
+        locationTokens[loc] = (locationTokens[loc] || 0) + rowTokens;
+    }
+
+    const sortedTimes = Object.keys(byTime).map(Number).sort((a, b) => a - b);
+    
+    const tempParsedData = sortedTimes.map(t => {
+        const d = new Date(Math.round(t / 1000));
+        return {
+            time: d,
+            inputTokens: byTime[t].input,
+            outputTokens: byTime[t].output,
+            debug429: byTime[t].debug429,
+            ptTh: byTime[t].ptTh,
+            paygoTh: byTime[t].paygoTh,
+            superTh: byTime[t].superTh,
+            totalRequests: byTime[t].totalRequests,
+            successRequests: byTime[t].successRequests
+        };
+    });
+
+    if (tempParsedData.length >= 2) {
+        let diffs = [];
+        for (let i = 1; i < tempParsedData.length; i++) {
+            let diff = (tempParsedData[i].time - tempParsedData[i-1].time) / (1000 * 60);
+            if (diff > 0 && diff < 100) diffs.push(diff);
+        }
+        diffs.sort((a, b) => a - b);
+        let medianDiff = diffs[Math.floor(diffs.length / 2)] || 1;
+        detectedM = Math.max(1, Math.round(medianDiff));
+    } else {
+        detectedM = 1;
+    }
+
+    resBanner.style.display = 'block';
+    resValue.innerText = `${detectedM} Minute${detectedM > 1 ? 's' : ''}`;
+
+    parsedData = tempParsedData.map(row => {
+        const totalTok = row.inputTokens + row.outputTokens;
+        const tpm = totalTok / detectedM;
+        const totalThrottles = row.debug429;
+        return {
+            time: row.time,
+            tpm: tpm,
+            throttles: totalThrottles,
+            debug429: row.debug429,
+            ptTh: row.ptTh,
+            paygoTh: row.paygoTh,
+            superTh: row.superTh,
+            totalRequests: row.totalRequests,
+            successRequests: row.successRequests
+        };
+    });
+
+    const totalTokens = totalInput + totalOutput;
+    if (totalTokens > 0) {
+        const calculatedRatio = Math.round((totalInput / totalTokens) * 100);
+        const finalRatio = Math.max(50, Math.min(99, calculatedRatio));
+        paramRatio.value = finalRatio;
+        updateLabel('param-ratio');
+    }
+
+    // Auto-map pricing preset based on the selected model with highest volume
+    let heaviestModel = "";
+    let maxVol = -1;
+    for (const model in modelVolumes) {
+        if (modelVolumes[model] > maxVol) {
+            maxVol = modelVolumes[model];
+            heaviestModel = model;
+        }
+    }
+    if (heaviestModel) {
+        autoMapModelPreset(heaviestModel);
+    }
+
+    const throttleRate = totalReq > 0 ? (totalThrottled / totalReq) * 100 : 0;
+    document.getElementById('metric-throttled_rate').innerText = throttleRate.toFixed(2) + "%";
+
+    populateBreakdownTables(projectTokens, locationTokens, totalTokens);
+
+    selectedGsuOverride = null;
+    processCalculation();
+}
+
+function autoMapModelPreset(csvModelName) {
+    const nameLower = csvModelName.toLowerCase();
+    let bestMatchPreset = null;
+
+    if (nameLower.includes("pro")) {
+        bestMatchPreset = "Gemini 3.1 Pro (Preview)";
+    } else if (nameLower.includes("3.5-flash") || nameLower.includes("3.5_flash")) {
+        bestMatchPreset = "Gemini 3.5 Flash";
+    } else if (nameLower.includes("flash-lite")) {
+        bestMatchPreset = "Gemini 3.1 Flash-Lite (Preview)";
+    } else if (nameLower.includes("flash")) {
+        bestMatchPreset = "Gemini 3 Flash (Preview)";
+    }
+
+    if (bestMatchPreset) {
+        const select = document.getElementById('model-preset');
+        if (select) {
+            select.value = bestMatchPreset;
+            applyPreset(bestMatchPreset);
+        }
+    }
+}
+
+function populateBreakdownTables(projectTokens, locationTokens, totalTokens) {
+    const projectsSorted = Object.entries(projectTokens)
+        .map(([proj, toks]) => ({ proj, toks }))
+        .sort((a, b) => b.toks - a.toks)
+        .slice(0, 10);
+
+    const projectsBody = document.querySelector('#projects-table tbody');
+    if (projectsBody) {
+        projectsBody.innerHTML = '';
+        projectsSorted.forEach(item => {
+            const tr = document.createElement('tr');
+            const volPct = totalTokens > 0 ? (item.toks / totalTokens) * 100 : 0;
+            tr.innerHTML = `
+                <td>${item.proj}</td>
+                <td>${(item.toks / 1_000_000).toFixed(2)} M</td>
+                <td>${volPct.toFixed(1)}%</td>
+            `;
+            projectsBody.appendChild(tr);
+        });
+    }
+
+    const locationsSorted = Object.entries(locationTokens)
+        .map(([loc, toks]) => ({ loc, toks }))
+        .sort((a, b) => b.toks - a.toks);
+
+    const locationsBody = document.querySelector('#locations-table tbody');
+    if (locationsBody) {
+        locationsBody.innerHTML = '';
+        locationsSorted.forEach(item => {
+            const tr = document.createElement('tr');
+            const volPct = totalTokens > 0 ? (item.toks / totalTokens) * 100 : 0;
+            tr.innerHTML = `
+                <td>${item.loc}</td>
+                <td>${(item.toks / 1_000_000).toFixed(2)} M</td>
+                <td>${volPct.toFixed(1)}%</td>
+            `;
+            locationsBody.appendChild(tr);
+        });
+    }
 }
 
 function detectResolution() {
@@ -498,12 +822,11 @@ function renderChart() {
     let prioLimit = ptLimit + (prioEnabled ? (unlimitedPrio ? 500000000 : parseFloat(paramMaxPrio.value)) : 0);
     let stdLimit = prioLimit + (unlimitedStd ? 500000000 : parseFloat(paramMaxStd.value));
 
-    // Calculate Y axis scale max to prevent unlimited lines from flattening data peaks
     const peakTpm = Math.max(...parsedData.map(row => row.tpm));
     let maxDisplay = peakTpm;
     if (ptEnabled && ptLimit < peakTpm * 3) maxDisplay = Math.max(maxDisplay, ptLimit);
     if (prioEnabled && prioLimit < peakTpm * 3) maxDisplay = Math.max(maxDisplay, prioLimit);
-    // Ignore absurdly high unlimited lines
+    
     const stdEnabledVis = document.getElementById('enable-standard').checked;
     if (stdEnabledVis && stdLimit < peakTpm * 3) maxDisplay = Math.max(maxDisplay, stdLimit);
     const yMax = maxDisplay * 1.1;
@@ -521,6 +844,20 @@ function renderChart() {
         tension: 0.2,
         order: 5
     }];
+
+    if (csvFormat === '429-dash-export') {
+        const throttlePoints = parsedData.map(row => ({ x: row.time, y: row.throttles > 0 ? row.throttles : null }));
+        datasets.push({
+            type: 'bar',
+            label: 'Actual Throttles',
+            data: throttlePoints,
+            borderColor: 'rgba(245, 158, 11, 0.25)',
+            backgroundColor: 'rgba(245, 158, 11, 0.25)',
+            barThickness: 2,
+            yAxisID: 'y1',
+            order: 4
+        });
+    }
 
     if (ptEnabled && ptLimit > 0) {
         datasets.push({
@@ -602,7 +939,25 @@ function renderChart() {
                         callback: function(value) { return (value / 1000000).toFixed(1) + 'M'; }
                     },
                     grid: { color: 'rgba(255,255,255,0.02)' }
-                }
+                },
+                ...(csvFormat === '429-dash-export' ? {
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Throttled Requests (Count)',
+                            color: '#F59E0B'
+                        },
+                        ticks: {
+                            color: '#9CA3AF'
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                } : {})
             }
         }
     });
